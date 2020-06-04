@@ -9,7 +9,7 @@ import {
   isDef,
   isUndef,
   isTrue,
-  isPrimitive,
+  isPrimitive, // 是否是非undefined|null得基本类型
   resolveAsset
 } from '../util/index'
 
@@ -24,11 +24,11 @@ const ALWAYS_NORMALIZE = 2
 // wrapper function for providing a more flexible interface
 // without getting yelled at by flow
 export function createElement (
-  context: Component,
-  tag: any,
-  data: any,
-  children: any,
-  normalizationType: any,
+  context: Component, // 上下文实例
+  tag: any, // 标签
+  data: any, // 数据
+  children: any, // 子节点
+  normalizationType: any, // 子节点规范的类型 -主要看render是用户手写还是自动编译
   alwaysNormalize: boolean
 ): VNode {
   if (Array.isArray(data) || isPrimitive(data)) {
@@ -43,18 +43,13 @@ export function createElement (
 }
 
 export function _createElement (
-  context: Component,
+  context: Component, // 在 flow\component.js 定义
   tag?: string | Class<Component> | Function | Object,
-  data?: VNodeData,
+  data?: VNodeData, // 在 flow\vnode.js 定义
   children?: any,
   normalizationType?: number
 ): VNode {
   if (isDef(data) && isDef((data: any).__ob__)) {
-    process.env.NODE_ENV !== 'production' && warn(
-      `Avoid using observed data object as vnode data: ${JSON.stringify(data)}\n` +
-      'Always create fresh vnode data objects in each render!',
-      context
-    )
     return createEmptyVNode()
   }
   // object syntax in v-bind
@@ -64,16 +59,6 @@ export function _createElement (
   if (!tag) {
     // in case of component :is set to falsy value
     return createEmptyVNode()
-  }
-  // warn against non-primitive key
-  if (process.env.NODE_ENV !== 'production' &&
-    isDef(data) && isDef(data.key) && !isPrimitive(data.key)
-  ) {
-    warn(
-      'Avoid using non-primitive value as key, ' +
-      'use string/number value instead.',
-      context
-    )
   }
   // support single function children as default scoped slot
   if (Array.isArray(children) &&

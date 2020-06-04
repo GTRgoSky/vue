@@ -24,6 +24,7 @@ function isFalse (v) {
 
 /**
  * Check if value is primitive
+ * 是非 undefined || null || Symbol 的基础类型
  */
 function isPrimitive (value) {
   return (
@@ -4674,11 +4675,15 @@ function createComment (text) {
 }
 
 function insertBefore (node, target, before) {
+  // 如果是文本
+  debugger
   if (target.nodeType === 3) {
+    // 如果父节点是text节点，则将值替换成新text
     if (node.type === 'text') {
       node.setAttr('value', target.text);
       target.parentNode = node;
-    } else {
+    } else { 
+      // 如果父节点不是text节点的文本（
       var text = createElement$1('text');
       text.setAttr('value', target.text);
       node.insertBefore(text, before);

@@ -14,6 +14,11 @@ export function createElement (tagName: string, vnode: VNode): Element {
   return elm
 }
 
+// XML 创建带有指定命名空间的元素节点：
+// document.createElementNS('p','test') 会创建一个test标签 ，域名空间为p
+// 一般在svg 创建时使用
+// 一般dom的，域名空间为  http://www.w3.org/1999/xhtml
+// svg的为 http://www.w3.org/2000/svg
 export function createElementNS (namespace: string, tagName: string): Element {
   return document.createElementNS(namespaceMap[namespace], tagName)
 }

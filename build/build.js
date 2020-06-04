@@ -8,9 +8,11 @@ if (!fs.existsSync('dist')) {
   fs.mkdirSync('dist')
 }
 
+// 所有配置集合
 let builds = require('./config').getAllBuilds()
 
 // filter builds via command line arg
+// 读取配置
 if (process.argv[2]) {
   const filters = process.argv[2].split(',')
   builds = builds.filter(b => {

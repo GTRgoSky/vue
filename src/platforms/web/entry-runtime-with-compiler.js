@@ -1,5 +1,5 @@
 /* @flow */
-
+// import Vue from 'vue' 时 就是从这个文件引入
 import config from 'core/config'
 import { warn, cached } from 'core/util/index'
 import { mark, measure } from 'core/util/perf'
@@ -14,54 +14,39 @@ const idToTemplate = cached(id => {
   return el && el.innerHTML
 })
 
+// 先缓存原先的$mount方法 -》src\platforms\web\runtime\index.js
 const mount = Vue.prototype.$mount
-Vue.prototype.$mount = function (
-  el?: string | Element,
-  hydrating?: boolean
-): Component {
+
+// 重新定以 $mount
+Vue.prototype.$mount = function (el?: string | Element, hydrating?: boolean): Component {
   el = el && query(el)
 
-  /* istanbul ignore if */
+  // 如果绑定DOM是body或者是doucment对象则直接返回this
   if (el === document.body || el === document.documentElement) {
-    process.env.NODE_ENV !== 'production' && warn(
-      `Do not mount Vue to <html> or <body> - mount to normal elements instead.`
-    )
     return this
   }
 
   const options = this.$options
   // resolve template/el and convert to render function
+  // 所有 Vue 的组件的渲染最终都需要 render 方法
   if (!options.render) {
     let template = options.template
     if (template) {
       if (typeof template === 'string') {
         if (template.charAt(0) === '#') {
           template = idToTemplate(template)
-          /* istanbul ignore if */
-          if (process.env.NODE_ENV !== 'production' && !template) {
-            warn(
-              `Template element not found or is empty: ${options.template}`,
-              this
-            )
-          }
         }
       } else if (template.nodeType) {
         template = template.innerHTML
       } else {
-        if (process.env.NODE_ENV !== 'production') {
-          warn('invalid template option:' + template, this)
-        }
         return this
       }
     } else if (el) {
       template = getOuterHTML(el)
     }
     if (template) {
-      /* istanbul ignore if */
-      if (process.env.NODE_ENV !== 'production' && config.performance && mark) {
-        mark('compile')
-      }
-
+      // “在线编译”的过程，它是调用 compileToFunctions 方法实现的
+      // 把 el 或者 template 字符串转换成 render 方法
       const { render, staticRenderFns } = compileToFunctions(template, {
         shouldDecodeNewlines,
         delimiters: options.delimiters,
@@ -69,14 +54,10 @@ Vue.prototype.$mount = function (
       }, this)
       options.render = render
       options.staticRenderFns = staticRenderFns
-
-      /* istanbul ignore if */
-      if (process.env.NODE_ENV !== 'production' && config.performance && mark) {
-        mark('compile end')
-        measure(`vue ${this._name} compile`, 'compile', 'compile end')
-      }
     }
   }
+
+  // 执行原先定义的$mount方法
   return mount.call(this, el, hydrating)
 }
 

@@ -181,7 +181,7 @@ export function defineReactive (
         val = newVal
       }
       childOb = !shallow && observe(newVal)
-      //dep的实例更新
+      // dep的实例更新
       dep.notify()
     }
   })
@@ -249,4 +249,14 @@ function dependArray (value: Array<any>) {
       dependArray(e)
     }
   }
+}
+
+/**
+ * In some cases we may want to disable observation inside a component's
+ * update computation.
+ */
+// shouldObserve属性设置为true,表示应该监听
+var shouldObserve = true
+export function toggleObserving (value) {
+  shouldObserve = value
 }

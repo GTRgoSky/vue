@@ -1,9 +1,9 @@
 /* @flow */
-
+// Virtual DOM 就是用一个原生的 JS 对象去描述一个 DOM 节点
 export default class VNode {
-  tag: string | void;
-  data: VNodeData | void;
-  children: ?Array<VNode>;
+  tag: string | void; // 标签名
+  data: VNodeData | void; // 标签数据
+  children: ?Array<VNode>; // 子节点
   text: string | void;
   elm: Node | void;
   ns: string | void;

@@ -15,8 +15,11 @@ import { isFalse, isTrue, isDef, isUndef, isPrimitive } from 'shared/util'
 // normalization is needed - if any child is an Array, we flatten the whole
 // thing with Array.prototype.concat. It is guaranteed to be only 1-level deep
 // because functional components already normalize their own children.
+// 调用场景是 render 函数是编译生成的
+// children: VNode
 export function simpleNormalizeChildren (children: any) {
   for (let i = 0; i < children.length; i++) {
+    // 函数式组件返回的是一个数组而不是一个根节点，所以会通过 Array.prototype.concat 方法把整个 children 数组打平，让它的深度只有一层。
     if (Array.isArray(children[i])) {
       return Array.prototype.concat.apply([], children)
     }

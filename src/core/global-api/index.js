@@ -1,5 +1,5 @@
 /* @flow */
-
+// 给 Vue 这个对象本身扩展全局的静态方法
 import config from '../config'
 import { initUse } from './use'
 import { initMixin } from './mixin'
@@ -21,13 +21,6 @@ export function initGlobalAPI (Vue: GlobalAPI) {
   // config
   const configDef = {}
   configDef.get = () => config
-  if (process.env.NODE_ENV !== 'production') {
-    configDef.set = () => {
-      warn(
-        'Do not replace the Vue.config object, set individual fields instead.'
-      )
-    }
-  }
   Object.defineProperty(Vue, 'config', configDef)
 
   // exposed util methods.

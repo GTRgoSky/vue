@@ -70,6 +70,8 @@ export function createPatchFunction (backend) {
   let i, j
   const cbs = {}
 
+  // nodeOps 表示对 “平台 DOM” 的一些操作方法
+  // modules 表示平台的一些模块
   const { modules, nodeOps } = backend
 
   for (i = 0; i < hooks.length; ++i) {
@@ -103,9 +105,11 @@ export function createPatchFunction (backend) {
     }
   }
 
-  let inPre = 0
+  const inPre = 0
+  // 通过虚拟节点创建真实的 DOM 并插入到它的父节点中
   function createElm (vnode, insertedVnodeQueue, parentElm, refElm, nested) {
     vnode.isRootInsert = !nested // for transition enter check
+    // 临时*返回false
     if (createComponent(vnode, insertedVnodeQueue, parentElm, refElm)) {
       return
     }
@@ -113,32 +117,8 @@ export function createPatchFunction (backend) {
     const data = vnode.data
     const children = vnode.children
     const tag = vnode.tag
+    // 验证vnode是否存在tag ，且tag是否合法，然后再去调用平台 DOM 的操作去创建一个占位符元素。
     if (isDef(tag)) {
-      if (process.env.NODE_ENV !== 'production') {
-        if (data && data.pre) {
-          inPre++
-        }
-        if (
-          !inPre &&
-          !vnode.ns &&
-          !(
-            config.ignoredElements.length &&
-            config.ignoredElements.some(ignore => {
-              return isRegExp(ignore)
-                ? ignore.test(tag)
-                : ignore === tag
-            })
-          ) &&
-          config.isUnknownElement(tag)
-        ) {
-          warn(
-            'Unknown custom element: <' + tag + '> - did you ' +
-            'register the component correctly? For recursive components, ' +
-            'make sure to provide the "name" option.',
-            vnode.context
-          )
-        }
-      }
       vnode.elm = vnode.ns
         ? nodeOps.createElementNS(vnode.ns, tag)
         : nodeOps.createElement(tag, vnode)
@@ -168,11 +148,8 @@ export function createPatchFunction (backend) {
         if (isDef(data)) {
           invokeCreateHooks(vnode, insertedVnodeQueue)
         }
+        // 把 DOM 插入到父节点中 parentElm.insertBefore(vnode.elm, refElm)
         insert(parentElm, vnode.elm, refElm)
-      }
-
-      if (process.env.NODE_ENV !== 'production' && data && data.pre) {
-        inPre--
       }
     } else if (isTrue(vnode.isComment)) {
       vnode.elm = nodeOps.createComment(vnode.text)
@@ -183,6 +160,7 @@ export function createPatchFunction (backend) {
     }
   }
 
+  // createComponent 方法目的是尝试创建子组件
   function createComponent (vnode, insertedVnodeQueue, parentElm, refElm) {
     let i = vnode.data
     if (isDef(i)) {
@@ -244,10 +222,12 @@ export function createPatchFunction (backend) {
     insert(parentElm, vnode.elm, refElm)
   }
 
+  // 把子节点插入到父节点中
   function insert (parent, elm, ref) {
     if (isDef(parent)) {
       if (isDef(ref)) {
         if (ref.parentNode === parent) {
+          // 被封装过的 实际是->parent.insertBefore(elm, ref)
           nodeOps.insertBefore(parent, elm, ref)
         }
       } else {
@@ -256,9 +236,11 @@ export function createPatchFunction (backend) {
     }
   }
 
+  // 遍历子虚拟节点，递归调用 createElm，这是一种常用的深度优先的遍历算法
   function createChildren (vnode, children, insertedVnodeQueue) {
     if (Array.isArray(children)) {
       for (let i = 0; i < children.length; ++i) {
+        // 把 vnode 的所有子节点 加入到自己的elm占位符下（elm-》一个实际创建的占位符。在122行
         createElm(children[i], insertedVnodeQueue, vnode.elm, null, true)
       }
     } else if (isPrimitive(vnode.text)) {
@@ -279,7 +261,9 @@ export function createPatchFunction (backend) {
     }
     i = vnode.data.hook // Reuse variable
     if (isDef(i)) {
+      // 执行所有的 create 的钩子
       if (isDef(i.create)) i.create(emptyNode, vnode)
+      // 把 vnode push 到 insertedVnodeQueue 中
       if (isDef(i.insert)) insertedVnodeQueue.push(vnode)
     }
   }
@@ -421,13 +405,6 @@ export function createPatchFunction (backend) {
           createElm(newStartVnode, insertedVnodeQueue, parentElm, oldStartVnode.elm)
         } else {
           vnodeToMove = oldCh[idxInOld]
-          /* istanbul ignore if */
-          if (process.env.NODE_ENV !== 'production' && !vnodeToMove) {
-            warn(
-              'It seems there are duplicate keys that is causing an update error. ' +
-              'Make sure each v-for item has a unique key.'
-            )
-          }
           if (sameVnode(vnodeToMove, newStartVnode)) {
             patchVnode(vnodeToMove, newStartVnode, insertedVnodeQueue)
             oldCh[idxInOld] = undefined
@@ -527,7 +504,7 @@ export function createPatchFunction (backend) {
     }
   }
 
-  let bailed = false
+  const bailed = false
   // list of modules that can skip create hook during hydration because they
   // are already rendered on the client or has no need for initialization
   const isRenderedModule = makeMap('attrs,style,class,staticClass,staticStyle,key')
@@ -563,16 +540,6 @@ export function createPatchFunction (backend) {
           // v-html and domProps: innerHTML
           if (isDef(i = data) && isDef(i = i.domProps) && isDef(i = i.innerHTML)) {
             if (i !== elm.innerHTML) {
-              /* istanbul ignore if */
-              if (process.env.NODE_ENV !== 'production' &&
-                typeof console !== 'undefined' &&
-                !bailed
-              ) {
-                bailed = true
-                console.warn('Parent: ', elm)
-                console.warn('server innerHTML: ', i)
-                console.warn('client innerHTML: ', elm.innerHTML)
-              }
               return false
             }
           } else {
@@ -589,15 +556,6 @@ export function createPatchFunction (backend) {
             // if childNode is not null, it means the actual childNodes list is
             // longer than the virtual children list.
             if (!childrenMatch || childNode) {
-              /* istanbul ignore if */
-              if (process.env.NODE_ENV !== 'production' &&
-                typeof console !== 'undefined' &&
-                !bailed
-              ) {
-                bailed = true
-                console.warn('Parent: ', elm)
-                console.warn('Mismatching childNodes vs. VNodes: ', elm.childNodes, children)
-              }
               return false
             }
           }
@@ -628,6 +586,18 @@ export function createPatchFunction (backend) {
     }
   }
 
+  // patch 是平台相关的
+  // 在 Web 和 Weex 环境，它们把虚拟 DOM 映射到 “平台 DOM” 的方法是不同的，
+  // 并且对 “DOM” 包括的属性模块创建和更新也不尽相同。因此每个平台都有各自的 nodeOps 和 modules，
+  // 它们的代码需要托管在 src/platforms 这个大目录下
+  // 而不同平台的 patch的主要逻辑部分是相同的，所以这部分公共的部分托管在 core 这个大目录下。
+  // 函数柯里化 function a(...) { return function(...) {...}}; => var b = a(...)// 保存状态; => b(...) //执行逻辑
+  /**
+   * oldVnode 表示旧的 VNode 节点 它也可以不存在或者是一个 DOM 对象 // oldVnode 是一个DOM 容器 (id=app的dom)
+   * vnode 表示执行 _render 后返回的 VNode 的节点 将oldVnode 转化为 VNode对象
+   * hydrating 表示是否是服务端渲染
+   * removeOnly 是给 transition-group 用
+   */
   return function patch (oldVnode, vnode, hydrating, removeOnly, parentElm, refElm) {
     if (isUndef(vnode)) {
       if (isDef(oldVnode)) invokeDestroyHook(oldVnode)
@@ -637,12 +607,14 @@ export function createPatchFunction (backend) {
     let isInitialPatch = false
     const insertedVnodeQueue = []
 
+    // isUndef =》 是undefined || null
     if (isUndef(oldVnode)) {
       // empty mount (likely as component), create new root element
       isInitialPatch = true
       createElm(vnode, insertedVnodeQueue, parentElm, refElm)
     } else {
-      const isRealElement = isDef(oldVnode.nodeType)
+      // isDef =》 不是 undefined || null
+      const isRealElement = isDef(oldVnode.nodeType) // -》true
       if (!isRealElement && sameVnode(oldVnode, vnode)) {
         // patch existing root node
         patchVnode(oldVnode, vnode, insertedVnodeQueue, removeOnly)
@@ -659,14 +631,6 @@ export function createPatchFunction (backend) {
             if (hydrate(oldVnode, vnode, insertedVnodeQueue)) {
               invokeInsertHook(vnode, insertedVnodeQueue, true)
               return oldVnode
-            } else if (process.env.NODE_ENV !== 'production') {
-              warn(
-                'The client-side rendered virtual DOM tree is not matching ' +
-                'server-rendered content. This is likely caused by incorrect ' +
-                'HTML markup, for example nesting block-level elements inside ' +
-                '<p>, or missing <tbody>. Bailing hydration and performing ' +
-                'full client-side render.'
-              )
             }
           }
           // either not server-rendered, or hydration failed.
@@ -676,6 +640,7 @@ export function createPatchFunction (backend) {
         // replacing existing element
         const oldElm = oldVnode.elm
         const parentElm = nodeOps.parentNode(oldElm)
+        // 重要
         createElm(
           vnode,
           insertedVnodeQueue,
