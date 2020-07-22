@@ -17,7 +17,7 @@ import {
   toRawType,
   capitalize,
   isBuiltInTag,
-  isPlainObject
+  isPlainObject // 判断是否是对象
 } from 'shared/util'
 
 /**
@@ -28,22 +28,8 @@ import {
 const strats = config.optionMergeStrategies
 
 /**
- * Options with restrictions
- */
-if (process.env.NODE_ENV !== 'production') {
-  strats.el = strats.propsData = function (parent, child, vm, key) {
-    if (!vm) {
-      warn(
-        `option "${key}" can only be used during instance ` +
-        'creation with the `new` keyword.'
-      )
-    }
-    return defaultStrat(parent, child)
-  }
-}
-
-/**
  * Helper that recursively merges two data objects together.
+ * 递归地将两个数据对象合并在一起
  */
 function mergeData (to: Object, from: ?Object): Object {
   if (!from) return to
@@ -53,10 +39,10 @@ function mergeData (to: Object, from: ?Object): Object {
     key = keys[i]
     toVal = to[key]
     fromVal = from[key]
-    if (!hasOwn(to, key)) {
-      set(to, key, fromVal)
+    if (!hasOwn(to, key)) { // 如果to的自身对象上没有key
+      set(to, key, fromVal) // 将to对应的key 替换成 fromVal
     } else if (isPlainObject(toVal) && isPlainObject(fromVal)) {
-      mergeData(toVal, fromVal)
+      mergeData(toVal, fromVal) // 递归拷贝
     }
   }
   return to
@@ -99,6 +85,7 @@ export function mergeDataOrFn (
         ? parentVal.call(vm)
         : parentVal
       if (instanceData) {
+        // 将父data拷贝到子data上(若重复则子被父替换)
         return mergeData(instanceData, defaultData)
       } else {
         return defaultData
@@ -114,23 +101,17 @@ strats.data = function (
 ): ?Function {
   if (!vm) {
     if (childVal && typeof childVal !== 'function') {
-      process.env.NODE_ENV !== 'production' && warn(
-        'The "data" option should be a function ' +
-        'that returns a per-instance value in component ' +
-        'definitions.',
-        vm
-      )
-
       return parentVal
     }
     return mergeDataOrFn.call(this, parentVal, childVal)
   }
 
-  return mergeDataOrFn(parentVal, childVal, vm)
+  return mergeDataOrFn(parentVal, childVal, vm) // 将
 }
 
 /**
  * Hooks and props are merged as arrays.
+ * 生命周期合并策略
  */
 function mergeHook (
   parentVal: ?Array<Function>,
@@ -146,6 +127,7 @@ function mergeHook (
 }
 
 LIFECYCLE_HOOKS.forEach(hook => {
+  // 绑定生命周期得合并策略
   strats[hook] = mergeHook
 })
 
@@ -171,6 +153,7 @@ function mergeAssets (
   }
 }
 
+// 合并子组件，指令，过滤器得合并策略
 ASSET_TYPES.forEach(function (type) {
   strats[type + 's'] = mergeAssets
 })
@@ -180,6 +163,7 @@ ASSET_TYPES.forEach(function (type) {
  *
  * Watchers hashes should not overwrite one
  * another, so we merge them as arrays.
+ * 不覆盖,而是放在队列中全部执行
  */
 strats.watch = function (
   parentVal: ?Object,
@@ -188,13 +172,17 @@ strats.watch = function (
   key: string
 ): ?Object {
   // work around Firefox's Object.prototype.watch...
+  // 火狐上有个原型链的问题
   if (parentVal === nativeWatch) parentVal = undefined
   if (childVal === nativeWatch) childVal = undefined
   /* istanbul ignore if */
+  // 如果不存在childVal直接返回一个继承自父级对象的对象
   if (!childVal) return Object.create(parentVal || null)
   if (process.env.NODE_ENV !== 'production') {
+    // 判断是否是Obj不是则给出提示
     assertObjectType(key, childVal, vm)
   }
+  // 如果Vue没有则直接返回minix
   if (!parentVal) return childVal
   const ret = {}
   extend(ret, parentVal)
@@ -213,6 +201,8 @@ strats.watch = function (
 
 /**
  * Other object hashes.
+ * 其他得属性合并策略
+ * 合并属性后以minix为主
  */
 strats.props =
 strats.methods =
@@ -223,6 +213,7 @@ strats.computed = function (
   vm?: Component,
   key: string
 ): ?Object {
+  // 验证格式,如果不是OBJECT则控制台提示
   if (childVal && process.env.NODE_ENV !== 'production') {
     assertObjectType(key, childVal, vm)
   }
@@ -242,25 +233,26 @@ const defaultStrat = function (parentVal: any, childVal: any): any {
     ? parentVal
     : childVal
 }
-
-/**
- * Validate component names
- */
-function checkComponents (options: Object) {
-  for (const key in options.components) {
-    const lower = key.toLowerCase()
-    if (isBuiltInTag(lower) || config.isReservedTag(lower)) {
-      warn(
-        'Do not use built-in or reserved HTML elements as component ' +
-        'id: ' + key
-      )
-    }
-  }
-}
-
 /**
  * Ensure all props option syntax are normalized into the
  * Object-based format.
+ * 把我们编写的 props 转成对象格式，因为实际上 props 除了对象格式，还允许写成数组格式。
+ * 当 props 是一个数组，每一个数组元素 prop 只能是一个 string，表示 prop 的 key，转成驼峰格式，prop 的类型为空。
+ * --》props: ['name', 'nick-name'] ===》 options.props = {name: { type: null },nickName: { type: null }}
+ * 当 props 是一个对象，对于 props 中每个 prop 的 key，我们会转驼峰格式，而它的 value，如果不是一个对象，我们就把它规范成一个对象。
+ * --》 props: {
+    name: String,
+    nickName: {
+      type: Boolean
+    }
+  }
+  ===》 options.props = {
+          name: { type: String },
+          nickName: { type: Boolean }
+        }
+ * 如果 props 既不是数组也不是对象，就抛出一个警告。
+ * 确保所有props选项语法规范化
+ *  基于对象的格式。
  */
 function normalizeProps (options: Object, vm: ?Component) {
   const props = options.props
@@ -274,8 +266,6 @@ function normalizeProps (options: Object, vm: ?Component) {
       if (typeof val === 'string') {
         name = camelize(val)
         res[name] = { type: null }
-      } else if (process.env.NODE_ENV !== 'production') {
-        warn('props must be strings when using array syntax.')
       }
     }
   } else if (isPlainObject(props)) {
@@ -286,12 +276,6 @@ function normalizeProps (options: Object, vm: ?Component) {
         ? val
         : { type: val }
     }
-  } else if (process.env.NODE_ENV !== 'production' && props) {
-    warn(
-      `Invalid value for option "props": expected an Array or an Object, ` +
-      `but got ${toRawType(props)}.`,
-      vm
-    )
   }
   options.props = res
 }
@@ -313,12 +297,6 @@ function normalizeInject (options: Object, vm: ?Component) {
         ? extend({ from: key }, val)
         : { from: val }
     }
-  } else if (process.env.NODE_ENV !== 'production' && inject) {
-    warn(
-      `Invalid value for option "inject": expected an Array or an Object, ` +
-      `but got ${toRawType(inject)}.`,
-      vm
-    )
   }
 }
 
@@ -350,16 +328,17 @@ function assertObjectType (name: string, value: any, vm: ?Component) {
 /**
  * Merge two option objects into a new one.
  * Core utility used in both instantiation and inheritance.
+ * 处理我们定义组件的对象 option，然后挂载到组件的实例 this.$options 中。
+ * 合并两个选项对象-得到一个新的。
+ * 在实例化和继承中使用的核心实用程序
+ * 合并父子得VUE配置，（data、watch、computed、methods等数据项）并且以父级配置为主（父子都有时）
+ * 主要功能就是把 parent 和 child 这两个对象根据一些合并策略，合并成一个新对象并返回
  */
 export function mergeOptions (
   parent: Object,
   child: Object,
   vm?: Component
 ): Object {
-  if (process.env.NODE_ENV !== 'production') {
-    checkComponents(child)
-  }
-
   if (typeof child === 'function') {
     child = child.options
   }
@@ -367,6 +346,7 @@ export function mergeOptions (
   normalizeProps(child, vm)
   normalizeInject(child, vm)
   normalizeDirectives(child)
+  // 先递归把 extends 和 mixins 合并到 parent 上
   const extendsFrom = child.extends
   if (extendsFrom) {
     parent = mergeOptions(parent, extendsFrom, vm)
@@ -376,12 +356,17 @@ export function mergeOptions (
       parent = mergeOptions(parent, child.mixins[i], vm)
     }
   }
+
+  // 然后遍历 parent，调用 mergeField，
   const options = {}
   let key
   for (key in parent) {
     mergeField(key)
   }
+  // 然后再遍历 child，
   for (key in child) {
+    // 如果 key 不在 parent 的自身属性上，则调用 mergeField
+    // 所以这里说明 Vue({})的属性优先于Vue.minix({});
     if (!hasOwn(parent, key)) {
       mergeField(key)
     }
@@ -397,6 +382,9 @@ export function mergeOptions (
  * Resolve an asset.
  * This function is used because child instances need access
  * to assets defined in its ancestor chain.
+ *  解决一个资产。
+ *  使用此函数是因为子实例需要访问
+ *  到其祖先链中定义的资产。
  */
 export function resolveAsset (
   options: Object,
@@ -411,11 +399,12 @@ export function resolveAsset (
   const assets = options[type]
   // check local registration variations first
   if (hasOwn(assets, id)) return assets[id]
-  const camelizedId = camelize(id)
+  const camelizedId = camelize(id)// 把xxx-xxx得-换成驼峰 =》 xxxXxx
   if (hasOwn(assets, camelizedId)) return assets[camelizedId]
-  const PascalCaseId = capitalize(camelizedId)
+  const PascalCaseId = capitalize(camelizedId) // 首字母变大写
   if (hasOwn(assets, PascalCaseId)) return assets[PascalCaseId]
   // fallback to prototype chain
+  // 若都找不到直接返回。 （一般是undefined了应该） 非生产模式下有告警
   const res = assets[id] || assets[camelizedId] || assets[PascalCaseId]
   if (process.env.NODE_ENV !== 'production' && warnMissing && !res) {
     warn(

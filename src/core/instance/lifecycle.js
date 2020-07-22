@@ -20,6 +20,7 @@ import {
 export let activeInstance: any = null
 export let isUpdatingChildComponent: boolean = false
 
+// 在 $mount 之前会调用
 export function initLifecycle (vm: Component) {
   const options = vm.$options
 
@@ -29,9 +30,11 @@ export function initLifecycle (vm: Component) {
     while (parent.$options.abstract && parent.$parent) {
       parent = parent.$parent
     }
+    // 通过 parent.$children.push(vm) 来把当前的 vm 存储到父实例的 $children 中
     parent.$children.push(vm)
   }
 
+  // 用来保留当前 vm 的父实例
   vm.$parent = parent
   vm.$root = parent ? parent.$root : vm
 
@@ -47,18 +50,27 @@ export function initLifecycle (vm: Component) {
 }
 
 export function lifecycleMixin (Vue: Class<Component>) {
+  // 用于渲染 VNode
   Vue.prototype._update = function (vnode: VNode, hydrating?: boolean) {
     const vm: Component = this
-    if (vm._isMounted) {
+    if (vm._isMounted) { // 已经执行过
       callHook(vm, 'beforeUpdate')
     }
     const prevEl = vm.$el
     const prevVnode = vm._vnode
+    // 用 prevActiveInstance 保留上一次的 activeInstance
+    // 实际上，prevActiveInstance 和当前的 vm 是一个父子关系，
+    // 当一个 vm 实例完成它的所有子树的 patch 或者 update 过程后，activeInstance 会回到它的父实例
     const prevActiveInstance = activeInstance
+    // 当前的 vm 赋值给 activeInstance
     activeInstance = vm
+
+    // 这个 vnode 是通过 vm._render() 返回的组件渲染 VNode
     vm._vnode = vnode
+
     // Vue.prototype.__patch__ is injected in entry points
     // based on the rendering backend used.
+    // 组件更新的过程，会执行
     if (!prevVnode) {
       // initial render
       // 在 src\platforms\web\runtime\index.js 赋值，在浏览器中 vm.__patch__ == patch
@@ -76,6 +88,8 @@ export function lifecycleMixin (Vue: Class<Component>) {
       // updates
       vm.$el = vm.__patch__(prevVnode, vnode)
     }
+
+    // 保持当前上下文的 Vue 实例
     activeInstance = prevActiveInstance
     // update __vue__ reference
     if (prevEl) {
@@ -85,6 +99,7 @@ export function lifecycleMixin (Vue: Class<Component>) {
       vm.$el.__vue__ = vm
     }
     // if parent is an HOC, update its $el as well
+    // vm._vnode 和 vm.$vnode 的关系就是一种父子关系
     if (vm.$vnode && vm.$parent && vm.$vnode === vm.$parent._vnode) {
       vm.$parent.$el = vm.$el
     }
@@ -99,6 +114,7 @@ export function lifecycleMixin (Vue: Class<Component>) {
     }
   }
 
+  // 可以看出在 beforeDestroy 时所有Dom均存在，在destroyed时，啥都没了
   Vue.prototype.$destroy = function () {
     const vm: Component = this
     if (vm._isBeingDestroyed) {
@@ -107,11 +123,13 @@ export function lifecycleMixin (Vue: Class<Component>) {
     callHook(vm, 'beforeDestroy')
     vm._isBeingDestroyed = true
     // remove self from parent
+    // 从 parent 的 $children 中删掉自身
     const parent = vm.$parent
     if (parent && !parent._isBeingDestroyed && !vm.$options.abstract) {
       remove(parent.$children, vm)
     }
     // teardown watchers
+    // 删除 watcher
     if (vm._watcher) {
       vm._watcher.teardown()
     }
@@ -127,10 +145,12 @@ export function lifecycleMixin (Vue: Class<Component>) {
     // call the last hook...
     vm._isDestroyed = true
     // invoke destroy hooks on current rendered tree
+    // 触发它子组件的销毁钩子函数
     vm.__patch__(vm._vnode, null)
     // fire destroyed hook
     callHook(vm, 'destroyed')
     // turn off all instance listeners.
+    // 卸载所有实例的监听
     vm.$off()
     // remove __vue__ reference
     if (vm.$el) {
@@ -155,11 +175,12 @@ export function mountComponent (
   if (!vm.$options.render) {
     vm.$options.render = createEmptyVNode
   }
-  // 先执行挂载前的生命钩子
+  // 先执行挂载前的生命钩子 -> 在render之前(此时虚拟DOM还没生成)
   callHook(vm, 'beforeMount')
 
   const updateComponent = () => {
     // 调用 vm._render 方法先生成虚拟 Node，最终调用 vm._update 更新 DOM
+    // 在生成 VNODE 过程中会对 vm 上的数据访问，这个时候就触发了数据对象的 getter
     vm._update(vm._render(), hydrating)
   }
 
@@ -171,6 +192,7 @@ export function mountComponent (
   // mounted is called for render-created child components in its inserted hook
   // vm.$vnode 表示 Vue 实例的父虚拟 Node -> 它为 Null 则表示当前是根 Vue 的实例
   // $vnode == document.parent 当没有父级时为null
+  // 这里的mounted只在 new Vue这种实例化过程中执行, 组件的mounted 在 src\core\vdom\create-component.js的 insert 执行 [先子后父]
   if (vm.$vnode == null) {
     // 设置 vm._isMounted 为 true， 表示这个实例已经挂载了
     vm._isMounted = true
@@ -180,9 +202,10 @@ export function mountComponent (
   return vm
 }
 
+// vnode 对应的实例 vm 的一系列属性也会发生变化，包括占位符 vm.$vnode 的更新、slot 的更新，listeners 的更新，props 的更新等等。
 export function updateChildComponent (
   vm: Component,
-  propsData: ?Object,
+  propsData: ?Object, // 父组件传递的 props 数据
   listeners: ?Object,
   parentVnode: VNode,
   renderChildren: ?Array<VNode>
@@ -217,10 +240,12 @@ export function updateChildComponent (
   // update props
   if (propsData && vm.$options.props) {
     observerState.shouldConvert = false
-    const props = vm._props
-    const propKeys = vm.$options._propKeys || []
+    const props = vm._props // 子组件的 props 值，
+    const propKeys = vm.$options._propKeys || [] // initProps 过程中，缓存的子组件中定义的所有 prop 的 key
     for (let i = 0; i < propKeys.length; i++) {
       const key = propKeys[i]
+      // 重新验证和计算新的 prop 数据
+      // 更新 vm._props，也就是子组件的 props
       props[key] = validateProp(key, vm.$options.props, propsData, vm)
     }
     observerState.shouldConvert = true
@@ -291,6 +316,7 @@ export function callHook (vm: Component, hook: string) {
   if (handlers) {
     for (let i = 0, j = handlers.length; i < j; i++) {
       try {
+        // 执行生命周期
         handlers[i].call(vm)
       } catch (e) {
         handleError(e, vm, `${hook} hook`)
@@ -298,6 +324,7 @@ export function callHook (vm: Component, hook: string) {
     }
   }
   if (vm._hasHookEvent) {
+    // 建立生命周期钩子,可以用vm.$on('hook:created', () =>{}) 来触发钩子
     vm.$emit('hook:' + hook)
   }
 }

@@ -74,28 +74,37 @@ export function _createElement (
     children = simpleNormalizeChildren(children)
   }
   let vnode, ns
+  // 如果是一个普通的 html 标签，像上一章的例子那样是一个普通的 div，则会实例化一个普通 VNode 节点，
+  // 先对 tag 做判断，如果是 string 类型
   if (typeof tag === 'string') {
     let Ctor
     ns = (context.$vnode && context.$vnode.ns) || config.getTagNamespace(tag)
     if (config.isReservedTag(tag)) {
+      // 如果是内置的一些节点，则直接创建一个普通 VNode
       // platform built-in elements
       vnode = new VNode(
         config.parsePlatformTagName(tag), data, children,
         undefined, undefined, context
       )
+      // src\core\util\options.js -》resolveAsset
+        // 若是局部注册则再src\core\instance\init.js(125) 中有一个合并过程
+        // 若是全局 src\core\global-api\assets.js（38） 中有一个extend
     } else if (isDef(Ctor = resolveAsset(context.$options, 'components', tag))) {
       // component
+      // 如果是为已注册的组件名，则通过 createComponent 创建一个组件类型的 VNode
       vnode = createComponent(Ctor, data, context, children, tag)
     } else {
       // unknown or unlisted namespaced elements
       // check at runtime because it may get assigned a namespace when its
       // parent normalizes children
+      // 否则创建一个未知的标签的 VNode
       vnode = new VNode(
         tag, data, children,
         undefined, undefined, context
       )
     }
   } else {
+    // 否则通过 createComponent 方法创建一个组件 VNode
     // direct component options / constructor
     vnode = createComponent(tag, data, context, children)
   }

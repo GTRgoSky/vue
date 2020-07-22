@@ -37,6 +37,7 @@ export function createAsyncPlaceholder (
   return node
 }
 
+// 处理了 3 种异步组件的创建方式
 export function resolveAsyncComponent (
   factory: Function,
   baseCtor: Class<Component>,
@@ -61,8 +62,11 @@ export function resolveAsyncComponent (
     const contexts = factory.contexts = [context]
     let sync = true
 
+    // 加载逻辑
     const forceRender = () => {
       for (let i = 0, l = contexts.length; i < l; i++) {
+        // 遍历 factory.contexts，拿到每一个调用异步组件的实例 vm, 执行 vm.$forceUpdate() 方法
+        //  src/core/instance/lifecycle.js (109)
         contexts[i].$forceUpdate()
       }
     }
@@ -72,7 +76,7 @@ export function resolveAsyncComponent (
       factory.resolved = ensureCtor(res, baseCtor)
       // invoke callbacks only if this is not a synchronous resolve
       // (async resolves are shimmed as synchronous during SSR)
-      if (!sync) {
+      if (!sync) { // 如果是异步
         forceRender()
       }
     })
@@ -83,6 +87,7 @@ export function resolveAsyncComponent (
         (reason ? `\nReason: ${reason}` : '')
       )
       if (isDef(factory.errorComp)) {
+        // /如果加载失败设置为true后从新执行update。
         factory.error = true
         forceRender()
       }
@@ -91,6 +96,7 @@ export function resolveAsyncComponent (
     const res = factory(resolve, reject)
 
     if (isObject(res)) {
+      // 如果用() => import('./my-async-component')进行异步加载，则 res 为 Promise
       if (typeof res.then === 'function') {
         // () => Promise
         if (isUndef(factory.resolved)) {
@@ -99,10 +105,12 @@ export function resolveAsyncComponent (
       } else if (isDef(res.component) && typeof res.component.then === 'function') {
         res.component.then(resolve, reject)
 
+        // 绑定error组件
         if (isDef(res.error)) {
           factory.errorComp = ensureCtor(res.error, baseCtor)
         }
 
+        // 绑定loading组件
         if (isDef(res.loading)) {
           factory.loadingComp = ensureCtor(res.loading, baseCtor)
           if (res.delay === 0) {

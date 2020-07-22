@@ -4090,6 +4090,7 @@ function _createElement (
     children = simpleNormalizeChildren(children);
   }
   var vnode, ns;
+  // 如果是一个普通的 html 标签，像上一章的例子那样是一个普通的 div，则会实例化一个普通 VNode 节点，
   if (typeof tag === 'string') {
     var Ctor;
     ns = (context.$vnode && context.$vnode.ns) || config.getTagNamespace(tag);
@@ -4112,6 +4113,7 @@ function _createElement (
       );
     }
   } else {
+    // 否则通过 createComponent 方法创建一个组件 VNode
     // direct component options / constructor
     vnode = createComponent(tag, data, context, children);
   }
@@ -4214,6 +4216,7 @@ function renderMixin (Vue) {
     // render self
     var vnode;
     try {
+      // 这里就是 把createElement 传给render方法的回调执行
       vnode = render.call(vm._renderProxy, vm.$createElement);
     } catch (e) {
       handleError(e, vm, "render");
@@ -5162,6 +5165,7 @@ function createPatchFunction (backend) {
         if (isDef(data)) {
           invokeCreateHooks(vnode, insertedVnodeQueue);
         }
+        // 把 DOM 插入到父节点中 parentElm.insertBefore(vnode.elm, refElm)
         insert(parentElm, vnode.elm, refElm);
       }
     } else if (isTrue(vnode.isComment)) {
@@ -5235,6 +5239,7 @@ function createPatchFunction (backend) {
     insert(parentElm, vnode.elm, refElm);
   }
 
+  // 把子节点插入到父节点中
   function insert (parent, elm, ref$$1) {
     if (isDef(parent)) {
       if (isDef(ref$$1)) {
@@ -5248,9 +5253,11 @@ function createPatchFunction (backend) {
     }
   }
 
+  // 遍历子虚拟节点，递归调用 createElm，这是一种常用的深度优先的遍历算法
   function createChildren (vnode, children, insertedVnodeQueue) {
     if (Array.isArray(children)) {
       for (var i = 0; i < children.length; ++i) {
+        // 把 vnode 的所有子节点 加入到自己的elm占位符下（elm-》一个实际创建的占位符。在122行
         createElm(children[i], insertedVnodeQueue, vnode.elm, null, true);
       }
     } else if (isPrimitive(vnode.text)) {
@@ -5271,7 +5278,9 @@ function createPatchFunction (backend) {
     }
     i = vnode.data.hook; // Reuse variable
     if (isDef(i)) {
+      // 执行所有的 create 的钩子
       if (isDef(i.create)) { i.create(emptyNode, vnode); }
+      // 把 vnode push 到 insertedVnodeQueue 中
       if (isDef(i.insert)) { insertedVnodeQueue.push(vnode); }
     }
   }

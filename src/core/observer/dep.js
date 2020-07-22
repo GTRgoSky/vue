@@ -11,9 +11,9 @@ let uid = 0
  * 发布订阅---可以用eventbus来理解
  */
 export default class Dep {
-  static target: ?Watcher;
+  static target: ?Watcher; // 全局唯一 Watcher
   id: number;
-  subs: Array<Watcher>;
+  subs: Array<Watcher>; //  Watcher 的数组
 
   constructor () {
     this.id = uid++
@@ -30,11 +30,13 @@ export default class Dep {
 
   depend () {
     if (Dep.target) {
+      // 他是一个watcher 实例
       Dep.target.addDep(this)
     }
   }
 
   notify () {
+    // 当设置data时执行这里，执行每个watcher实例的update方法更新视图
     // stabilize the subscriber list first
     const subs = this.subs.slice() // sub里每个都是watcher
     for (let i = 0, l = subs.length; i < l; i++) {
@@ -50,10 +52,10 @@ Dep.target = null
 const targetStack = []
 
 export function pushTarget (_target: Watcher) {
-  if (Dep.target) targetStack.push(Dep.target)
+  if (Dep.target) targetStack.push(Dep.target) // 保存上一个Watcher实例
   Dep.target = _target
 }
 
 export function popTarget () {
-  Dep.target = targetStack.pop()
+  Dep.target = targetStack.pop() // 获取上一个Watcher实例
 }

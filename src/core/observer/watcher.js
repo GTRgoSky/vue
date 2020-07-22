@@ -20,6 +20,8 @@ let uid = 0
  * A watcher parses an expression, collects dependencies,
  * and fires callback when the expression value changes.
  * This is used for both the $watch() api and directives.
+ * 用于监听data/computed/watcher的数据变化。
+ * 数据被劫持后执行Dep的notify然后；subs遍历收集的Watcher，进模板更新 update
  */
 export default class Watcher {
   vm: Component;
@@ -49,23 +51,27 @@ export default class Watcher {
     vm._watchers.push(this)
     // options
     if (options) {
-      this.deep = !!options.deep
-      this.user = !!options.user
-      this.lazy = !!options.lazy
+      this.deep = !!options.deep // watch深度监听
+      this.user = !!options.user // 当是watch时为true
+      this.lazy = !!options.lazy // 当时computed时为true
       this.sync = !!options.sync
     } else {
       this.deep = this.user = this.lazy = this.sync = false
     }
+    // 在属性的watcher：{}中这个cb就是watcher监听属性的回调
     this.cb = cb
     this.id = ++uid // uid for batching
     this.active = true
     this.dirty = this.lazy // for lazy watchers
+    //  Watcher 实例持有的 Dep 实例的数组
     this.deps = []
     this.newDeps = []
+    // 代表 this.deps 和 this.newDeps 的 id
     this.depIds = new Set()
     this.newDepIds = new Set()
     this.expression = ''
     // parse expression for getter
+    // expOrFn 在lifeCycle中是一个生成VNODE 更新DOM得回调
     if (typeof expOrFn === 'function') {
       this.getter = expOrFn
     } else {
@@ -81,8 +87,11 @@ export default class Watcher {
 
   /**
    * Evaluate the getter, and re-collect dependencies.
+   * 若是computed时，相关data的自身持有的 dep 添加到当前正在计算的 watcher 中
+   * this.getter.call执行computed的方法，并触发data的getter方法
    */
   get () {
+    // 将当前Wacther赋值给Dep.target
     pushTarget(this)
     let value
     const vm = this.vm
@@ -98,7 +107,7 @@ export default class Watcher {
       // "touch" every property so they are all tracked as
       // dependencies for deep watching
       if (this.deep) {
-        // 遍历
+        // 遍历 要递归去访问 value，触发它所有子项的 getter
         traverse(value)
       }
       popTarget()
@@ -109,12 +118,16 @@ export default class Watcher {
 
   /**
    * Add a dependency to this directive.
+   * 向此指令添加依赖项。
    */
   addDep (dep: Dep) {
+    // dep Dep对象的实例
     const id = dep.id
+    // 将对应的depId存在newDepIds中，每个depId都是一个更新数据的劫持的绑定
     if (!this.newDepIds.has(id)) {
       this.newDepIds.add(id)
       this.newDeps.push(dep)
+      // 如果没有加入到dep中subs的队列则将对应视图的wather实例推入，再更新data时会触发这个队列更新视图
       if (!this.depIds.has(id)) {
         dep.addSub(this)
       }
@@ -123,6 +136,8 @@ export default class Watcher {
 
   /**
    * Clean up for dependency collection.
+   * // 将depIds/deps赋值为新的newDepIds/newDepIds
+   * 将newDepIds/newDepIds还原为空
    */
   cleanupDeps () {
     let i = this.deps.length
@@ -137,7 +152,7 @@ export default class Watcher {
     this.newDepIds = tmp
     this.newDepIds.clear()
     tmp = this.deps
-    this.deps = this.newDeps
+    this.deps = this.newDepIds
     this.newDeps = tmp
     this.newDeps.length = 0
   }
@@ -149,11 +164,12 @@ export default class Watcher {
    */
   update () {
     /* istanbul ignore else */
-    if (this.lazy) {
+    if (this.lazy) { // computed
+      // 更新时，再将dirty变成true
       this.dirty = true
     } else if (this.sync) {
       this.run()
-    } else {
+    } else { // 一般执行到这里
       queueWatcher(this)
     }
   }
@@ -164,7 +180,10 @@ export default class Watcher {
    */
   run () {
     if (this.active) {
-      const value = this.get()
+      // 会执行监听的 getter 方法
+      const value = this.get() // 获取当前data[key]的值（新值）
+      // this.value 是老值
+      // 如果满足新旧值不等、新值是对象类型、deep 模式任何一个条件，则执行 watcher 的回调
       if (
         value !== this.value ||
         // Deep watchers and watchers on Object/Arrays should fire even
@@ -176,13 +195,18 @@ export default class Watcher {
         // set new value
         const oldValue = this.value
         this.value = value
+        // 在watcher中看为false
+        // 写了watch的会执行再第一次值改变时才执行，若用了 immediate 则会立即执行一次，但不是在这里而是再
+        //  src\core\instance\state.js （415）
         if (this.user) {
           try {
+            // 传入了新老值，this指向Vue实例
             this.cb.call(this.vm, value, oldValue)
           } catch (e) {
             handleError(e, this.vm, `callback for watcher "${this.expression}"`)
           }
         } else {
+          // 传入了新老值，this指向Vue实例
           this.cb.call(this.vm, value, oldValue)
         }
       }
@@ -194,16 +218,22 @@ export default class Watcher {
    * This only gets called for lazy watchers.
    */
   evaluate () {
+    // 会执行 value = this.getter.call(vm, vm)
+    // 实际上就是执行了计算属性定义的 getter 函数
     this.value = this.get()
     this.dirty = false
   }
 
   /**
    * Depend on all deps collected by this watcher.
+   * 收集所有deps的实例到watcher的newDeps
+   * 将对应的watcher实例推入到Dep类中的subs数组中
    */
   depend () {
     let i = this.deps.length
     while (i--) {
+      // 从computed过来时：
+      // 这时候的 Dep.target 是渲染 watcher，所以 this.dep.depend() 相当于渲染 watcher 订阅了这个 computed watcher 的变化。
       this.deps[i].depend()
     }
   }
@@ -233,7 +263,12 @@ export default class Watcher {
  * getters, so that every nested property inside the object
  * is collected as a "deep" dependency.
  */
+// b保存已经记录过的深层次DepId，如果存在就不再深度遍历
 const seenObjects = new Set()
+
+// 对一个对象做深层递归遍历
+// 因为遍历过程中就是对一个子对象的访问，会触发它们的 getter 过程，
+// 这样就可以收集到依赖，也就是订阅它们变化的 watcher
 function traverse (val: any) {
   seenObjects.clear()
   _traverse(val, seenObjects)

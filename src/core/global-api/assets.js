@@ -7,6 +7,10 @@ import { warn, isPlainObject } from '../util/index'
 export function initAssetRegisters (Vue: GlobalAPI) {
   /**
    * Create asset registration methods.
+   *  'component',
+      'directive',
+      'filter'
+      绑定全局组件，指令，过滤器
    */
   ASSET_TYPES.forEach(type => {
     Vue[type] = function (
@@ -25,13 +29,18 @@ export function initAssetRegisters (Vue: GlobalAPI) {
             )
           }
         }
+        // 组件且传到是函数
         if (type === 'component' && isPlainObject(definition)) {
           definition.name = definition.name || id
+          // packages\weex-vue-framework\factory.js
+          //  把definition这个对象转换成一个继承于 Vue 的构造函数
+          // 若是局部注册则再src\core\instance\init.js中有一个合并过程
           definition = this.options._base.extend(definition)
         }
         if (type === 'directive' && typeof definition === 'function') {
           definition = { bind: definition, update: definition }
         }
+        // components何时绑上去得 -- fxquestion
         this.options[type + 's'][id] = definition
         return definition
       }

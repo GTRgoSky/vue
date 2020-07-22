@@ -50,6 +50,7 @@ export function toRawType (value: any): string {
 /**
  * Strict object type check. Only returns true
  * for plain JavaScript objects.
+ * 是否是对象
  */
 export function isPlainObject (obj: any): boolean {
   return _toString.call(obj) === '[object Object]'
@@ -61,6 +62,7 @@ export function isRegExp (v: any): boolean {
 
 /**
  * Check if val is a valid array index.
+ * 检查val是否是一个有效的数组索引。
  */
 export function isValidArrayIndex (val: any): boolean {
   const n = parseFloat(String(val))
@@ -201,6 +203,8 @@ export function toArray (list: any, start?: number): Array<any> {
 
 /**
  * Mix properties into target object.
+ * 将属性混合到目标对象中。
+ * 将from属性复制到to上（优先级高于to，产生覆盖）
  */
 export function extend (to: Object, _from: ?Object): Object {
   for (const key in _from) {

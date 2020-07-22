@@ -64,6 +64,7 @@ export function renderMixin (Vue: Class<Component>) {
       那么render方法就是上述方法，vm.$createElement就是 createElement
       vm.$options 其实就是new Vue(vm.$options);
      */
+    // _parentVnode 就是当前组件的父 VNode
     const { render, _parentVnode } = vm.$options
 
     if (vm._isMounted) {
@@ -81,10 +82,12 @@ export function renderMixin (Vue: Class<Component>) {
 
     // set parent vnode. this allows render functions to have access
     // to the data on the placeholder node.
+    // _parentVnode 就是当前组件的父 VNode
     vm.$vnode = _parentVnode
     // render self
     let vnode
     try {
+      // 这里就是 把createElement 传给render方法的回调执行
       vnode = render.call(vm._renderProxy, vm.$createElement)
     } catch (e) {
       handleError(e, vm, `render`)
@@ -97,7 +100,9 @@ export function renderMixin (Vue: Class<Component>) {
       vnode = createEmptyVNode()
     }
     // set parent
+    // 将当前组建的parent指向父级VNode
     vnode.parent = _parentVnode
+    // 最后生成一个vnode （js描述得html文档）
     return vnode
   }
 }

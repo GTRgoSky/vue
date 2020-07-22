@@ -59,6 +59,7 @@ const builds = {
     banner
   },
   // Runtime+compiler CommonJS build (ES Modules)
+  // 项目中引入的是这个
   'web-full-esm': {
     entry: resolve('web/entry-runtime-with-compiler.js'),
     dest: resolve('dist/vue.esm.js'),

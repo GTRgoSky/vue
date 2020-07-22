@@ -37,15 +37,22 @@ export function initGlobalAPI (Vue: GlobalAPI) {
   Vue.delete = del
   Vue.nextTick = nextTick
 
+  // 声明一个空对象
   Vue.options = Object.create(null)
+  // 这个绑定的是子组件，过滤器，指令（在这里全局注册）
+  // 创建各个属性得值为{}
   ASSET_TYPES.forEach(type => {
     Vue.options[type + 's'] = Object.create(null)
   })
 
   // this is used to identify the "base" constructor to extend all plain-object
+  // 它用于标识扩展所有明文对象的“基”构造函数
   // components with in Weex's multi-instance scenarios.
+  // 保存Vue这个构造器函数（典型在Vue.extend会用到）
   Vue.options._base = Vue
 
+  //  把一些内置组件扩展到 Vue.options.components 上
+  // builtInComponents -- keep-alive
   extend(Vue.options.components, builtInComponents)
 
   initUse(Vue)

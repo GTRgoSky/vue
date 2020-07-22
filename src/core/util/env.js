@@ -54,6 +54,7 @@ export const isServerRendering = () => {
 export const devtools = inBrowser && window.__VUE_DEVTOOLS_GLOBAL_HOOK__
 
 /* istanbul ignore next */
+// native code浏览器原生行为
 export function isNative (Ctor: any): boolean {
   return typeof Ctor === 'function' && /native code/.test(Ctor.toString())
 }
@@ -72,7 +73,9 @@ export const nextTick = (function () {
 
   function nextTickHandler () {
     pending = false
+    // 获取所有压入的数组
     const copies = callbacks.slice(0)
+    // 清空
     callbacks.length = 0
     for (let i = 0; i < copies.length; i++) {
       copies[i]()
@@ -88,6 +91,7 @@ export const nextTick = (function () {
   // that consistently queues the callback after all DOM events triggered in the
   // same loop is by using MessageChannel.
   /* istanbul ignore if */
+  // setImmediate类似setTimeout(0)
   if (typeof setImmediate !== 'undefined' && isNative(setImmediate)) {
     timerFunc = () => {
       setImmediate(nextTickHandler)
@@ -121,6 +125,10 @@ export const nextTick = (function () {
   return function queueNextTick (cb?: Function, ctx?: Object) {
     let _resolve
     callbacks.push(() => {
+      // this.$nextTick(cb:function, context);
+      // cb传入执行回调，如果没传入直接将context以Promise返回（等执行栈方法执行完成后）
+      // 使用 cb 而不是直接在 nextTick 中执行回调函数的原因是保证在同一个 tick 内多次执行 nextTick，
+      // 不会开启多个异步任务，而把这些异步任务都压成一个同步任务，在下一个 tick 执行完毕。
       if (cb) {
         try {
           cb.call(ctx)
@@ -136,6 +144,7 @@ export const nextTick = (function () {
       timerFunc()
     }
     // $flow-disable-line
+    // 当 nextTick 不传 cb 参数的时候，提供一个 Promise 化的调用
     if (!cb && typeof Promise !== 'undefined') {
       return new Promise((resolve, reject) => {
         _resolve = resolve

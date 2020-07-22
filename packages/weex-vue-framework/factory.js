@@ -2718,21 +2718,6 @@ function flushSchedulerQueue () {
     id = watcher.id;
     has[id] = null;
     watcher.run();
-    // in dev build, check and stop circular updates.
-    if (process.env.NODE_ENV !== 'production' && has[id] != null) {
-      circular[id] = (circular[id] || 0) + 1;
-      if (circular[id] > MAX_UPDATE_COUNT) {
-        warn(
-          'You may have an infinite update loop ' + (
-            watcher.user
-              ? ("in watcher with expression \"" + (watcher.expression) + "\"")
-              : "in a component render function."
-          ),
-          watcher.vm
-        );
-        break
-      }
-    }
   }
 
   // keep copies of post queues before resetting state
@@ -2757,6 +2742,7 @@ function callUpdatedHooks (queue) {
   while (i--) {
     var watcher = queue[i];
     var vm = watcher.vm;
+    // 只有 vm._watcher 的回调执行完毕后，才会执行 updated 钩子函数。
     if (vm._watcher === watcher && vm._isMounted) {
       callHook(vm, 'updated');
     }
@@ -3001,7 +2987,7 @@ Watcher.prototype.depend = function depend () {
  * Remove self from all dependencies' subscriber list.
  */
 Watcher.prototype.teardown = function teardown () {
-    var this$1 = this;
+  var this$1 = this;
 
   if (this.active) {
     // remove self from vm's watcher list
@@ -4367,6 +4353,7 @@ function initExtend (Vue) {
 
   /**
    * Class inheritance
+   *  把extendOptions这个对象转换成一个继承于 Vue 的构造函数
    */
   Vue.extend = function (extendOptions) {
     extendOptions = extendOptions || {};
