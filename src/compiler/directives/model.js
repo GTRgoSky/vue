@@ -2,6 +2,7 @@
 
 /**
  * Cross-platform code generation for component v-model
+ * 子组件绑定v-model
  */
 export function genComponentModel (
   el: ASTElement,
@@ -37,6 +38,7 @@ export function genAssignmentCode (
   value: string,
   assignment: string
 ): string {
+  // 首先对 v-model 对应的 value 做了解析
   const res = parseModel(value)
   if (res.key === null) {
     return `${value}=${assignment}`
@@ -67,6 +69,7 @@ type ModelParseResult = {
   key: string | null
 }
 
+// 首先对 v-model 对应的 value 做了解析
 export function parseModel (val: string): ModelParseResult {
   len = val.length
 

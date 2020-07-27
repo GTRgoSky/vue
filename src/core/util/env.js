@@ -92,6 +92,7 @@ export const nextTick = (function () {
   // same loop is by using MessageChannel.
   /* istanbul ignore if */
   // setImmediate类似setTimeout(0)
+  // 2.4版本之后统一通过宏任务 macro task 优先了
   if (typeof setImmediate !== 'undefined' && isNative(setImmediate)) {
     timerFunc = () => {
       setImmediate(nextTickHandler)

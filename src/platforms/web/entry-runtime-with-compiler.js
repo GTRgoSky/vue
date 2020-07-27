@@ -18,6 +18,7 @@ const idToTemplate = cached(id => {
 const mount = Vue.prototype.$mount
 
 // 重新定以 $mount
+// 编译是发生在调用 vm.$mount 的时候
 Vue.prototype.$mount = function (el?: string | Element, hydrating?: boolean): Component {
   el = el && query(el)
 
@@ -47,6 +48,7 @@ Vue.prototype.$mount = function (el?: string | Element, hydrating?: boolean): Co
     if (template) {
       // “在线编译”的过程，它是调用 compileToFunctions 方法实现的
       // 把 el 或者 template 字符串转换成 render 方法
+      // 进入编译核心 parse 阶段 的入口
       const { render, staticRenderFns } = compileToFunctions(template, {
         shouldDecodeNewlines,
         delimiters: options.delimiters,

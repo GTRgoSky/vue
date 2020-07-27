@@ -13,17 +13,20 @@ import { makeMap, no } from 'shared/util'
 import { isNonPhrasingTag } from 'web/compiler/util'
 
 // Regular Expressions for parsing tags and attributes
+// 匹配的过程中主要利用了正则表达式，如下
+// 通过这些正则表达式，我们可以匹配注释节点、文档类型节点、开始闭合标签等。
 const attribute = /^\s*([^\s"'<>\/=]+)(?:\s*(=)\s*(?:"([^"]*)"+|'([^']*)'+|([^\s"'=<>`]+)))?/
 // could use https://www.w3.org/TR/1999/REC-xml-names-19990114/#NT-QName
 // but for Vue templates we can enforce a simple charset
 const ncname = '[a-zA-Z_][\\w\\-\\.]*'
 const qnameCapture = `((?:${ncname}\\:)?${ncname})`
-const startTagOpen = new RegExp(`^<${qnameCapture}`)
+const startTagOpen = new RegExp(`^<${qnameCapture}`) //  匹配到开始标签
 const startTagClose = /^\s*(\/?)>/
 const endTag = new RegExp(`^<\\/${qnameCapture}[^>]*>`)
 const doctype = /^<!DOCTYPE [^>]+>/i
 const comment = /^<!--/
 const conditionalComment = /^<!\[/
+// end
 
 let IS_REGEX_CAPTURING_BROKEN = false
 'x'.replace(/x(.)?/g, function (m, g) {
@@ -67,6 +70,9 @@ export function parseHTML (html, options) {
       let textEnd = html.indexOf('<')
       if (textEnd === 0) {
         // Comment:
+        // 注释节点、文档类型节点
+        // 对于注释节点和文档类型节点的匹配，如果匹配到我们仅仅做的是做前进即可。
+        // 对于注释和条件注释节点，前进至它们的末尾位置；对于文档类型节点，则前进它自身长度的距离。
         if (comment.test(html)) {
           const commentEnd = html.indexOf('-->')
 
@@ -106,8 +112,16 @@ export function parseHTML (html, options) {
         }
 
         // Start tag:
+        // 开始标签
+        // 首先通过 parseStartTag 解析开始标签：
+        // 先通过正则表达式 startTagOpen 匹配到开始标签，
+        // 然后定义了 match 对象，
+        // 接着循环去匹配开始标签中的属性并添加到 match.attrs 中，
+        // 直到匹配的开始标签的闭合符结束。
+        // 如果匹配到闭合符，则获取一元斜线符，前进到闭合符尾，并把当前索引赋值给 match.end
         const startTagMatch = parseStartTag()
         if (startTagMatch) {
+          // parseStartTag 对开始标签解析拿到 match 后，紧接着会执行 handleStartTag 对 match 做处理
           handleStartTag(startTagMatch)
           if (shouldIgnoreFirstNewline(lastTag, html)) {
             advance(1)
@@ -116,6 +130,7 @@ export function parseHTML (html, options) {
         }
       }
 
+      // 接下来判断 textEnd 是否大于等于 0 的，满足则说明到从当前位置到 textEnd 位置都是文本
       let text, rest, next
       if (textEnd >= 0) {
         rest = html.slice(textEnd)
@@ -135,12 +150,15 @@ export function parseHTML (html, options) {
         advance(textEnd)
       }
 
+      // 再继续判断 textEnd 小于 0 的情况，则说明整个 template 解析完毕了，把剩余的 html 都赋值给了 text。
       if (textEnd < 0) {
         text = html
         html = ''
       }
 
       if (options.chars && text) {
+        // 最后调用了 options.chars 回调函数，并传 text 参数
+        // src\compiler\parser\index.js -》 241
         options.chars(text)
       }
     } else {
@@ -177,8 +195,16 @@ export function parseHTML (html, options) {
   }
 
   // Clean up any remaining tags
+  // 先通过正则 endTag 匹配到闭合标签，然后前进到闭合标签末尾，然后执行 parseEndTag 方法对闭合标签做解析。
   parseEndTag()
 
+  // 在匹配的过程中会利用 advance 函数不断前进整个模板字符串，直到字符串末尾。
+  /**
+   *
+   * @param {*} n
+   * eg: <div>123</div>
+   * advance(4) =>  <div*>123</div> 位置执行到 * 处
+   */
   function advance (n) {
     index += n
     html = html.substring(n)
@@ -193,11 +219,13 @@ export function parseHTML (html, options) {
         start: index
       }
       advance(start[0].length)
+      // 接着循环去匹配开始标签中的属性并添加到直到匹配的开始标签的闭合符结束
       let end, attr
       while (!(end = html.match(startTagClose)) && (attr = html.match(attribute))) {
         advance(attr[0].length)
         match.attrs.push(attr)
       }
+      // 则获取一元斜线符，前进到闭合符尾，并把当前索引赋值给 match.end。
       if (end) {
         match.unarySlash = end[1]
         advance(end[0].length)
@@ -207,6 +235,15 @@ export function parseHTML (html, options) {
     }
   }
 
+  /**
+   *
+   * @param {211行的match对象，经过parseStartTag返回} match
+   * 先判断开始标签是否是一元标签 类似 <img>、<br/> 这样
+   * 接着对 match.attrs 遍历并做了一些处理
+   * 最后判断如果非一元标签，则往 stack 里 push 一个对象，并且把 tagName 赋值给 lastTag
+   * 对于闭合标签的解析，就是倒序 stack（栈类型-先进后出）
+   * 最后调用了 options.start 回调函数，并传入一些参数
+   */
   function handleStartTag (match) {
     const tagName = match.tagName
     const unarySlash = match.unarySlash

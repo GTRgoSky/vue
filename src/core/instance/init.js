@@ -31,6 +31,7 @@ export function initMixin (Vue: Class<Component>) {
       // 因为动态选项合并是相当慢的，没有一个
       // 内部组件选项需要特殊处理。
       // 这里首先是合并 options 的过程有变化
+      // 此时vm.$options就具有了options的部分属性
       initInternalComponent(vm, options)
       /**
        * vm.$options = {

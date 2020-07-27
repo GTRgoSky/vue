@@ -38,7 +38,7 @@ export function addHandler (
   el: ASTElement,
   name: string,
   value: string,
-  modifiers: ?ASTModifiers,
+  modifiers: ?ASTModifiers, // 修饰符
   important?: boolean,
   warn?: Function
 ) {
@@ -53,6 +53,8 @@ export function addHandler (
       'Passive handler can\'t prevent default event.'
     )
   }
+
+  // 根据 modifier 修饰符对事件名 name 做处理 -start
   // check capture modifier
   if (modifiers && modifiers.capture) {
     delete modifiers.capture
@@ -67,11 +69,16 @@ export function addHandler (
     delete modifiers.passive
     name = '&' + name // mark the event as passive
   }
+  // -end
+
   let events
+  // 根据 modifier.native 判断是一个纯原生事件还是普通事件
   if (modifiers && modifiers.native) {
+    // 原生事件
     delete modifiers.native
     events = el.nativeEvents || (el.nativeEvents = {})
   } else {
+    // 普通事件
     events = el.events || (el.events = {})
   }
   const newHandler = { value, modifiers }
@@ -105,7 +112,7 @@ export function getBindingAttr (
 }
 
 // note: this only removes the attr from the Array (attrsList) so that it
-// doesn't get processed by processAttrs.
+// doesn't get processed by processAttrs. 不会被processAttrs处理
 // By default it does NOT remove it from the map (attrsMap) because the map is
 // needed during codegen.
 export function getAndRemoveAttr (

@@ -48,7 +48,8 @@ const componentVNodeHooks = {
       // 它最终会调用 mountComponent（147） 方法，进而执行 vm._render() 方法： src\core\instance\lifecycle.js
       child.$mount(hydrating ? vnode.elm : undefined, hydrating)
     } else if (vnode.data.keepAlive) {
-      // keep-alive
+      // keep-alive 如果是keep-alive的第二次渲染
+      // 这也就是被 <keep-alive> 包裹的组件在有缓存的时候就不会在执行组件的 created、mounted 等钩子函数的原因了
       // kept-alive components, treat as a patch
       const mountedNode: any = vnode // work around flow
       componentVNodeHooks.prepatch(mountedNode, mountedNode)
@@ -173,6 +174,7 @@ export function createComponent (
   resolveConstructorOptions(Ctor)
 
   // transform component v-model data into props & events
+  // 会对 data.model 的情况做处理
   if (isDef(data.model)) {
     transformModel(Ctor.options, data)
   }
@@ -188,9 +190,11 @@ export function createComponent (
 
   // extract listeners, since these needs to be treated as
   // child component listeners instead of DOM listeners
+  // 把 data.on 赋值给了 listeners - 绑定的事件
   const listeners = data.on
   // replace with listeners with .native modifier
   // so it gets processed during parent component patch.
+  // 把 data.nativeOn 赋值给了 data.on
   data.on = data.nativeOn
 
   if (isTrue(Ctor.options.abstract)) {
@@ -283,7 +287,9 @@ function mergeHook (one: Function, two: Function): Function {
 
 // transform component v-model info (value and callback) into
 // prop and event handler respectively.
+// 给 data.props 添加 data.model.value，并且给data.on 添加 data.model.callback
 function transformModel (options, data: any) {
+  // 组件的 value prop 以及派发的 input 事件名是可配的，可以看到 transformModel 中对这部分的处理
   const prop = (options.model && options.model.prop) || 'value'
   const event = (options.model && options.model.event) || 'input'
   ;(data.props || (data.props = {}))[prop] = data.model.value

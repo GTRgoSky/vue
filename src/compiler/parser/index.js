@@ -59,11 +59,21 @@ export function createASTElement (
 
 /**
  * Convert HTML string to AST.
+ * template 就是我们的模板字符串
+ * options 实际上是和平台相关的一些配置  src/platforms/web/compiler/options-> baseOptions
+ * 输出是 AST 的根节点
+ *
+ * parse 的目标是把 template 模板字符串转换成 AST 树，
+ * 它是一种用 JavaScript 对象的形式来描述整个模板。
+ * 那么整个 parse 的过程是利用正则表达式顺序解析模板，
+ * 当解析到开始标签、闭合标签、文本的时候都会分别执行对应的回调函数，来达到构造 AST 树的目的。
+ * AST 元素节点总共有 3 种类型，type 为 1 表示是普通元素，为 2 表示是表达式，为 3 表示是纯文本。
  */
 export function parse (
   template: string,
   options: CompilerOptions
 ): ASTElement | void {
+  // 1-start 从 options 中获取方法和配置
   warn = options.warn || baseWarn
 
   platformIsPreTag = options.isPreTag || no
@@ -75,6 +85,7 @@ export function parse (
   postTransforms = pluckModuleFunction(options.modules, 'postTransformNode')
 
   delimiters = options.delimiters
+  // 1-end
 
   const stack = []
   const preserveWhitespace = options.preserveWhitespace !== false
@@ -91,6 +102,7 @@ export function parse (
     }
   }
 
+  // 更新一下 inVPre 和 inPre 的状态，以及执行 postTransforms 函数
   function endPre (element) {
     // check pre state
     if (element.pre) {
@@ -101,6 +113,7 @@ export function parse (
     }
   }
 
+  // 循环解析 template ，用正则做各种匹配，对于不同情况分别进行不同的处理，直到整个 template 被解析完毕
   parseHTML(template, {
     warn,
     expectHTML: options.expectHTML,
@@ -108,6 +121,7 @@ export function parse (
     canBeLeftOpenTag: options.canBeLeftOpenTag,
     shouldDecodeNewlines: options.shouldDecodeNewlines,
     shouldKeepComment: options.comments,
+    // 创建 AST 元素，处理 AST 元素，AST 树管理。
     start (tag, attrs, unary) {
       // check namespace.
       // inherit parent ns if there is one
@@ -119,11 +133,20 @@ export function parse (
         attrs = guardIESVGBug(attrs)
       }
 
+      // 通过 createASTElement 方法去创建一个 AST 元素并添加了 namespace
+      // 每一个 AST 元素就是一个普通的 JavaScript 对象
+      // type 表示 AST 元素类型，
+      // tag 表示标签名，
+      // attrsList 表示属性列表，
+      // attrsMap 表示属性映射表，
+      // parent 表示父的 AST 元素，
+      // children 表示子 AST 元素集合。
       let element: ASTElement = createASTElement(tag, attrs, currentParent)
       if (ns) {
         element.ns = ns
       }
 
+      // 处理 AST 元素
       if (isForbiddenTag(element) && !isServerRendering()) {
         element.forbidden = true
         process.env.NODE_ENV !== 'production' && warn(
@@ -134,10 +157,13 @@ export function parse (
       }
 
       // apply pre-transforms
+      // 所有模块的 preTransforms、 transforms 和 postTransforms 的定义都在
+      // src/platforms/web/compiler/modules 目录中
       for (let i = 0; i < preTransforms.length; i++) {
         element = preTransforms[i](element, options) || element
       }
 
+      // 接着判断 element 是否包含各种指令通过 processXXX 做相应的处理，处理的结果就是扩展 AST 元素的属性
       if (!inVPre) {
         processPre(element)
         if (element.pre) {
@@ -151,13 +177,20 @@ export function parse (
         processRawAttrs(element)
       } else if (!element.processed) {
         // structural directives
+        // processFor 就是从元素中拿到 v-for 指令的内容，然后分别解析出 for、alias、iterator1、iterator2 等属性的值添加到 AST 的元素上
         processFor(element)
+        // processIf 就是从元素中拿 v-if 指令的内容，
         processIf(element)
+        // 拿到 v-once
         processOnce(element)
         // element-scope stuff
+        // slot
         processElement(element, options)
       }
 
+      // AST 树管理
+      // AST 树管理的目标是构建一颗 AST 树
+      // 维护 root 根节点和当前父节点 currentParent
       function checkRootConstraints (el) {
         if (process.env.NODE_ENV !== 'production') {
           if (el.tag === 'slot' || el.tag === 'template') {
@@ -195,10 +228,16 @@ export function parse (
           )
         }
       }
+      // 当我们在处理开始标签的时候，判断如果有 currentParent，
+      // 会把当前 AST 元素 push 到 currentParent.chilldren 中，
+      // 同时把 AST 元素的 parent 指向 currentParent
       if (currentParent && !element.forbidden) {
         if (element.elseif || element.else) {
           processIfConditions(element, currentParent)
         } else if (element.slotScope) { // scoped slot
+          // 对于拥有 scopedSlot 属性的 AST 元素节点而言，是不会作为 children 添加到当前 AST 树中，
+          // 而是存到父 AST 元素节点的 scopedSlots 属性上
+          // 以插槽名称 name 为 key
           currentParent.plain = false
           const name = element.slotTarget || '"default"'
           ;(currentParent.scopedSlots || (currentParent.scopedSlots = {}))[name] = element
@@ -207,6 +246,10 @@ export function parse (
           element.parent = currentParent
         }
       }
+      // 接着就是更新 currentParent 和 stack ，
+      // 判断当前如果不是一个一元标签，
+      // 我们要把它生成的 AST 元素 push 到 stack 中，
+      // 并且把当前的 AST 元素赋值给 currentParent。
       if (!unary) {
         currentParent = element
         stack.push(element)
@@ -219,6 +262,7 @@ export function parse (
       }
     },
 
+    // 当解析到闭合标签的时候，最后会执行 end 回调函数：
     end () {
       // remove trailing whitespace
       const element = stack[stack.length - 1]
@@ -232,6 +276,8 @@ export function parse (
       endPre(element)
     },
 
+    // 处理文本内容
+    // 文本构造的 AST 元素有 2 种类型，一种是有表达式的-{{}}，type 为 2，一种是纯文本 - ''，type 为 3
     chars (text: string) {
       if (!currentParent) {
         if (process.env.NODE_ENV !== 'production') {
@@ -343,6 +389,8 @@ function processRef (el) {
   }
 }
 
+// eg： v-for="(item,index) in data"
+// 解析出的的 for 是 data，alias 是 item，iterator1 是 index，没有 iterator2
 export function processFor (el: ASTElement) {
   let exp
   if ((exp = getAndRemoveAttr(el, 'v-for'))) {
@@ -353,14 +401,16 @@ export function processFor (el: ASTElement) {
       )
       return
     }
-    el.for = inMatch[2].trim()
+    el.for = inMatch[2].trim() // data
     const alias = inMatch[1].trim()
     const iteratorMatch = alias.match(forIteratorRE)
     if (iteratorMatch) {
-      el.alias = iteratorMatch[1].trim()
-      el.iterator1 = iteratorMatch[2].trim()
+      // 在array中 item是值，index是下标，key是空
+      // 在对象中 item是值，index是key值，key是顺序
+      el.alias = iteratorMatch[1].trim() // item
+      el.iterator1 = iteratorMatch[2].trim() // index
       if (iteratorMatch[3]) {
-        el.iterator2 = iteratorMatch[3].trim()
+        el.iterator2 = iteratorMatch[3].trim() // key
       }
     } else {
       el.alias = alias
@@ -368,6 +418,9 @@ export function processFor (el: ASTElement) {
   }
 }
 
+// 如果拿到则给 AST 元素添加 if 属性和 ifConditions 属性；
+// 否则尝试拿 v-else 指令及 v-else-if 指令的内容，
+// 如果拿到则给 AST 元素分别添加 else 和 elseif 属性
 function processIf (el) {
   const exp = getAndRemoveAttr(el, 'v-if')
   if (exp) {
@@ -435,6 +488,9 @@ function processOnce (el) {
 
 function processSlot (el) {
   if (el.tag === 'slot') {
+    // 子组件中的slot标签
+    // 当遇到 slot 标签的时候会给对应的 AST 元素节点添加 slotName 属性
+    // 在 codegen 阶段，会判断如果当前 AST 元素节点是 slot 标签，则执行 genSlot 函数
     el.slotName = getBindingAttr(el, 'name')
     if (process.env.NODE_ENV !== 'production' && el.key) {
       warn(
@@ -444,6 +500,7 @@ function processSlot (el) {
       )
     }
   } else {
+    // 父组件中 当解析到标签上有 slot 属性的时候，会给对应的 AST 元素节点添加 slotTarget 属性，
     let slotScope
     if (el.tag === 'template') {
       slotScope = getAndRemoveAttr(el, 'scope')
@@ -459,10 +516,12 @@ function processSlot (el) {
       }
       el.slotScope = slotScope || getAndRemoveAttr(el, 'slot-scope')
     } else if ((slotScope = getAndRemoveAttr(el, 'slot-scope'))) {
+      // 读取 scoped-slot 属性并赋值给当前 AST 元素节点的 slotScope 属性
       el.slotScope = slotScope
     }
     const slotTarget = getBindingAttr(el, 'slot')
     if (slotTarget) {
+      // 默认给default
       el.slotTarget = slotTarget === '""' ? '"default"' : slotTarget
       // preserve slot as an attribute for native shadow DOM compat
       // only for non-scoped slots.
@@ -483,6 +542,7 @@ function processComponent (el) {
   }
 }
 
+// 对修饰符进行处理
 function processAttrs (el) {
   const list = el.attrsList
   let i, l, name, rawName, value, modifiers, isProp
@@ -493,6 +553,7 @@ function processAttrs (el) {
       // mark element as dynamic
       el.hasBindings = true
       // modifiers
+      // 如果是指令，首先通过 parseModifiers 解析出修饰符 -> modifiers 修饰符
       modifiers = parseModifiers(name)
       if (modifiers) {
         name = name.replace(modifierRE, '')
@@ -510,6 +571,7 @@ function processAttrs (el) {
           if (modifiers.camel) {
             name = camelize(name)
           }
+
           if (modifiers.sync) {
             addHandler(
               el,
@@ -526,6 +588,7 @@ function processAttrs (el) {
           addAttr(el, name, value)
         }
       } else if (onRE.test(name)) { // v-on
+        // 如果是事件的指令
         name = name.replace(onRE, '')
         addHandler(el, name, value, modifiers, false, warn)
       } else { // normal directives

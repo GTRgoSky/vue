@@ -10,6 +10,7 @@ let warn
 // so we used some reserved tokens during compile.
 export const RANGE_TOKEN = '__r'
 
+// v-model
 export default function model (
   el: ASTElement,
   dir: ASTDirective,
@@ -32,6 +33,7 @@ export default function model (
     }
   }
 
+  // 根据 AST 元素节点的不同情况去执行不同的逻辑
   if (el.component) {
     genComponentModel(el, value, modifiers)
     // component v-model doesn't need extra runtime
@@ -127,6 +129,7 @@ function genDefaultModel (
   modifiers: ?ASTModifiers
 ): ?boolean {
   const type = el.attrsMap.type
+  // modifiers 事件修饰符
   const { lazy, number, trim } = modifiers || {}
   const needCompositionGuard = !lazy && type !== 'range'
   const event = lazy
@@ -135,6 +138,8 @@ function genDefaultModel (
       ? RANGE_TOKEN
       : 'input'
 
+  // modifiers 它的不同主要影响的是 event 和 valueExpression 的值
+  // 在 input 中 valueExpression 为 $event.target.value
   let valueExpression = '$event.target.value'
   if (trim) {
     valueExpression = `$event.target.value.trim()`
@@ -143,13 +148,23 @@ function genDefaultModel (
     valueExpression = `_n(${valueExpression})`
   }
 
+  // 生成代码
+  // 得到 code =  if($event.target.composing)return;message=$event.target.value。
   let code = genAssignmentCode(value, valueExpression)
   if (needCompositionGuard) {
     code = `if($event.target.composing)return;${code}`
   }
 
+  // 通过修改 AST 元素，给 el 添加一个 prop
+  // 相当于我们在 input 上动态绑定了 value，又给 el 添加了事件处理，相当于在 input 上绑定了 input 事件
   addProp(el, 'value', `(${value})`)
   addHandler(el, event, code, null, true)
+  // 生成模板
+  /**
+   * <input
+      v-bind:value="message"
+      v-on:input="message=$event.target.value">
+   */
   if (trim || number) {
     addHandler(el, 'blur', '$forceUpdate()')
   }

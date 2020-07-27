@@ -7,7 +7,35 @@ type CompiledFunctionResult = {
   render: Function;
   staticRenderFns: Array<Function>;
 };
-
+/**
+ * eg:
+ *  <ul :class="bindCls" class="list" v-if="isShow">
+        <li v-for="(item,index) in data" @click="clickItem(index)">{{item}}:{{index}}</li>
+    </ul>
+    render:
+    with(this){
+      return (isShow) ?
+        _c('ul', {
+            staticClass: "list",
+            class: bindCls
+          },
+          _l((data), function(item, index) {
+            return _c('li', {
+              on: {
+                "click": function($event) {
+                  clickItem(index)
+                }
+              }
+            },
+            [_v(_s(item) + ":" + _s(index))])
+          })
+        ) : _e()
+    }
+ */
+// 在 src/core/instance/render.js =》 vm._c = (a, b, c, d) => createElement(vm, a, b, c, d, false) => 生成render代码串
+// 把这个 render 代码串转换成函数
+// 把 render 代码串通过 new Function 的方式转换成可执行的函数，赋值给 vm.options.render，
+// 这样当组件通过 vm._render 的时候，就会执行这个 render 函
 function createFunction (code, errors) {
   try {
     return new Function(code)
@@ -22,6 +50,9 @@ export function createCompileToFunctionFn (compile: Function): Function {
     [key: string]: CompiledFunctionResult;
   } = Object.create(null)
 
+  /**
+   * 编译模板 template，编译配置 options 和 Vue 实例 vm
+   */
   return function compileToFunctions (
     template: string,
     options?: CompilerOptions,
@@ -58,6 +89,8 @@ export function createCompileToFunctionFn (compile: Function): Function {
     }
 
     // compile
+    // 核心的编译过程
+    // compile 是 createCompiler 函数中定义的 compile-》src\compiler\create-compiler.js
     const compiled = compile(template, options)
 
     // check compilation errors/tips

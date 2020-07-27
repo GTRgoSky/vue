@@ -26,6 +26,7 @@ export function initLifecycle (vm: Component) {
 
   // locate first non-abstract parent
   let parent = options.parent
+  // 如果是抽象组件，不作为父组件容器
   if (parent && !options.abstract) {
     while (parent.$options.abstract && parent.$parent) {
       parent = parent.$parent
@@ -202,6 +203,7 @@ export function mountComponent (
   return vm
 }
 
+// 更新组件实例的一些属性
 // vnode 对应的实例 vm 的一系列属性也会发生变化，包括占位符 vm.$vnode 的更新、slot 的更新，listeners 的更新，props 的更新等等。
 export function updateChildComponent (
   vm: Component,
@@ -216,6 +218,7 @@ export function updateChildComponent (
 
   // determine whether component has slot children
   // we need to do this before overwriting $options._renderChildren
+  // 判断是否含有slot
   const hasChildren = !!(
     renderChildren ||               // has new static slots
     vm.$options._renderChildren ||  // has old static slots
@@ -260,8 +263,11 @@ export function updateChildComponent (
     updateComponentListeners(vm, listeners, oldListeners)
   }
   // resolve slots + force update if has children
+  // 如果有slot
   if (hasChildren) {
     vm.$slots = resolveSlots(renderChildren, parentVnode.context)
+    // 触发keep-alive的 $forceUpdate 方法
+    // 重新执行 <keep-alive> 的 render 方法
     vm.$forceUpdate()
   }
 

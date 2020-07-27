@@ -37,12 +37,21 @@ export type CodegenResult = {
   staticRenderFns: Array<string>
 };
 
+// 将AST编译成可执行的代码
+/**
+ *
+ * @param {编译生成的AST template src\compiler\create-compiler.js} ast
+ * @param {经过 createCompiler 处理的 平台配置 src\compiler\create-compiler.js} options
+ */
 export function generate (
   ast: ASTElement | void,
   options: CompilerOptions
 ): CodegenResult {
+  // state 实例化CodegenState 将指令 directives 绑定到 实例上
   const state = new CodegenState(options)
+  // 首先通过 genElement(ast, state) 生成 code
   const code = ast ? genElement(ast, state) : '_c("div")'
+  // 再把 code 用 with(this){return ${code}}} 包裹起来
   return {
     render: `with(this){return ${code}}`,
     staticRenderFns: state.staticRenderFns
@@ -139,8 +148,11 @@ function genIfConditions (
     return altEmpty || '_e()'
   }
 
+  // 依次从 conditions 获取第一个 condition
   const condition = conditions.shift()
+  // 通过对 condition.exp 去生成一段三元运算符的代码
   if (condition.exp) {
+    // 后是递归调用 genIfConditions
     return `(${condition.exp})?${
       genTernaryExp(condition.block)
     }:${
@@ -200,6 +212,7 @@ export function genData (el: ASTElement, state: CodegenState): string {
   const dirs = genDirectives(el, state)
   if (dirs) data += dirs + ','
 
+  // 根据指令生成一些 data 的代码
   // key
   if (el.key) {
     data += `key:${el.key},`
@@ -241,13 +254,15 @@ export function genData (el: ASTElement, state: CodegenState): string {
   // slot target
   // only for non-scoped slots
   if (el.slotTarget && !el.slotScope) {
+    // 给 data 添加一个 slot 属性，并指向 slotTarget（生成内容见slot.md-代码块1-slot属性）
     data += `slot:${el.slotTarget},`
   }
   // scoped slots
   if (el.scopedSlots) {
     data += `${genScopedSlots(el.scopedSlots, state)},`
   }
-  // component v-model
+  // component v-model **
+  // 组件 v-model
   if (el.model) {
     data += `model:{value:${
       el.model.value
@@ -276,6 +291,7 @@ export function genData (el: ASTElement, state: CodegenState): string {
   return data
 }
 
+// 遍历 el.directives 指令
 function genDirectives (el: ASTElement, state: CodegenState): string | void {
   const dirs = el.directives
   if (!dirs) return
@@ -285,6 +301,7 @@ function genDirectives (el: ASTElement, state: CodegenState): string | void {
   for (i = 0, l = dirs.length; i < l; i++) {
     dir = dirs[i]
     needRuntime = true
+    // 获取每一个指令的方法 （类似 v-model；v-html等）
     const gen: DirectiveFunction = state.directives[dir.name]
     if (gen) {
       // compile-time directive that manipulates AST.
@@ -324,17 +341,20 @@ function genInlineTemplate (el: ASTElement, state: CodegenState): ?string {
   }
 }
 
+// 对 scopedSlots 对象遍历
 function genScopedSlots (
   slots: { [key: string]: ASTElement },
   state: CodegenState
 ): string {
   return `scopedSlots:_u([${
     Object.keys(slots).map(key => {
+      // 执行 genScopedSlot，并把结果用逗号拼接
       return genScopedSlot(key, slots[key], state)
     }).join(',')
   }])`
 }
 
+// genScopedSlot 是先生成一段函数代码，并且函数的参数就是我们的 slotScope
 function genScopedSlot (
   key: string,
   el: ASTElement,
@@ -449,7 +469,9 @@ export function genComment (comment: ASTText): string {
   return `_e(${JSON.stringify(comment.text)})`
 }
 
+//
 function genSlot (el: ASTElement, state: CodegenState): string {
+  // slotName 从 AST 元素节点对应的属性上取
   const slotName = el.slotName || '"default"'
   const children = genChildren(el, state)
   let res = `_t(${slotName}${children ? `,${children}` : ''}`

@@ -69,6 +69,7 @@ function createKeyToOldIdx (children, beginIdx, endIdx) {
   return map
 }
 
+//  Vue 的渲染最后都会到 patch 过程
 export function createPatchFunction (backend) {
   let i, j
   const cbs = {}
@@ -171,9 +172,13 @@ export function createPatchFunction (backend) {
     let i = vnode.data
     // 判断i不是空
     if (isDef(i)) {
+      //  isReactivated 的变量，它是根据 vnode.componentInstance 以及 vnode.data.keepAlive 的判断
+      // 第一次渲染，vnode.componentInstance 为 undefined，vnode.data.keepAlive 为 true，因为它的父组件 <keep-alive> 的 render 函数会先执行
+      // 所以 isReactivated 第一次为 false
+      // 第二次为 true -》 在执行 init 钩子函数的时候不会再执行组件的 mount 过程了
       const isReactivated = isDef(vnode.componentInstance) && i.keepAlive
       // 在 src\core\vdom\create-component.js 中有一个给vNode的data得componentInstance赋值钩子的操作。
-      // 这里 i先等于hook， 在等于hook中的init
+      // 这里 i先等于hook（若成立不为空）， 在等于hook中的init
       if (isDef(i = i.hook) && isDef(i = i.init)) {
         i(vnode, false /* hydrating */, parentElm, refElm)
       }
@@ -200,6 +205,7 @@ export function createPatchFunction (backend) {
       insertedVnodeQueue.push.apply(insertedVnodeQueue, vnode.data.pendingInsert)
       vnode.data.pendingInsert = null
     }
+    // vnode.elm 缓存了 vnode 创建生成的 DOM 节点
     vnode.elm = vnode.componentInstance.$el
     if (isPatchable(vnode)) {
       invokeCreateHooks(vnode, insertedVnodeQueue)
@@ -220,6 +226,7 @@ export function createPatchFunction (backend) {
     // again. It's not ideal to involve module-specific logic in here but
     // there doesn't seem to be a better way to do it.
     let innerNode = vnode
+    // 解决对 reactived 组件 transition 动画不触发的问题
     while (innerNode.componentInstance) {
       innerNode = innerNode.componentInstance._vnode
       if (isDef(i = innerNode.data) && isDef(i = i.transition)) {
@@ -232,6 +239,7 @@ export function createPatchFunction (backend) {
     }
     // unlike a newly created component,
     // a reactivated keep-alive component doesn't insert itself
+    // 通过执行 insert(parentElm, vnode.elm, refElm) 就把缓存的 DOM 对象直接插入到目标元素中
     insert(parentElm, vnode.elm, refElm)
   }
 
@@ -488,6 +496,7 @@ export function createPatchFunction (backend) {
     const data = vnode.data
     // 执行 prepatch 钩子函数
     // 当更新的 vnode 是一个组件 vnode 的时候，会执行 prepatch 的方法，它的定义在
+    // keep-alive
     if (isDef(data) && isDef(i = data.hook) && isDef(i = i.prepatch)) {
       i(oldVnode, vnode)
     }

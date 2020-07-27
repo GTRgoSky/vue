@@ -13,6 +13,7 @@ export function initEvents (vm: Component) {
   vm._events = Object.create(null)
   vm._hasHookEvent = false
   // init parent attached events
+  // 获取到绑定的事件
   const listeners = vm.$options._parentListeners
   if (listeners) {
     updateComponentListeners(vm, listeners)
@@ -23,14 +24,14 @@ let target: Component
 
 function add (event, fn, once) {
   if (once) {
-    target.$once(event, fn)
+    target.$once(event, fn) // 66行
   } else {
-    target.$on(event, fn)
+    target.$on(event, fn) // 49行
   }
 }
 
 function remove (event, fn) {
-  target.$off(event, fn)
+  target.$off(event, fn) // 77行
 }
 
 export function updateComponentListeners (
@@ -39,6 +40,7 @@ export function updateComponentListeners (
   oldListeners: ?Object
 ) {
   target = vm
+  // 进行事件绑定
   updateListeners(listeners, oldListeners || {}, add, remove, vm)
 }
 
@@ -51,6 +53,7 @@ export function eventsMixin (Vue: Class<Component>) {
         this.$on(event[i], fn)
       }
     } else {
+      // 将回调事件存在vm._events[event]队列里面
       (vm._events[event] || (vm._events[event] = [])).push(fn)
       // optimize hook:event cost by using a boolean flag marked at registration
       // instead of a hash lookup
@@ -61,10 +64,12 @@ export function eventsMixin (Vue: Class<Component>) {
     return vm
   }
 
+  // 监听一个自定义事件，但是只触发一次。一旦触发之后，监听器就会被移除。
   Vue.prototype.$once = function (event: string, fn: Function): Component {
     const vm: Component = this
     function on () {
       vm.$off(event, on)
+      // 先移除后执行
       fn.apply(vm, arguments)
     }
     on.fn = fn
@@ -72,6 +77,15 @@ export function eventsMixin (Vue: Class<Component>) {
     return vm
   }
 
+  /**
+   *
+   * @param {*} event 事件名
+   * @param {*} fn 事件回调
+   * 移除自定义事件监听器。
+    如果没有提供参数，则移除所有的事件监听器；
+    如果只提供了事件，则移除该事件所有的监听器；
+    如果同时提供了事件与回调，则只移除这个回调的监听器。
+   */
   Vue.prototype.$off = function (event?: string | Array<string>, fn?: Function): Component {
     const vm: Component = this
     // all
@@ -110,6 +124,7 @@ export function eventsMixin (Vue: Class<Component>) {
     return vm
   }
 
+  // vm.$emit 是给当前的 vm 上派发的实例
   Vue.prototype.$emit = function (event: string): Component {
     const vm: Component = this
     if (process.env.NODE_ENV !== 'production') {
@@ -124,6 +139,7 @@ export function eventsMixin (Vue: Class<Component>) {
         )
       }
     }
+    // 找到对应的事件名，执行
     let cbs = vm._events[event]
     if (cbs) {
       cbs = cbs.length > 1 ? toArray(cbs) : cbs

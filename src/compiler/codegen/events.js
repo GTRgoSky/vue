@@ -52,6 +52,7 @@ export function genHandlers (
         `do not actually fire "click" events.`
       )
     }
+    // 对同一个事件名称的事件
     res += `"${name}":${genHandler(name, handler)},`
   }
   return res.slice(0, -1) + '}'
@@ -65,18 +66,22 @@ function genHandler (
     return 'function(){}'
   }
 
+  // 如果 handler 是一个数组，就遍历它然后递归调用 genHandler 方法并拼接结果
   if (Array.isArray(handler)) {
     return `[${handler.map(handler => genHandler(name, handler)).join(',')}]`
   }
 
-  const isMethodPath = simplePathRE.test(handler.value)
-  const isFunctionExpression = fnExpRE.test(handler.value)
+  // 然后判断 hanlder.value 是一个函数的调用路径还是一个函数表达式
+  const isMethodPath = simplePathRE.test(handler.value) // 函数的调用路径
+  const isFunctionExpression = fnExpRE.test(handler.value)// 函数表达式
 
+  // 对于没有 modifiers 的情况，就根据 handler.value 不同情况处理，要么直接返回，要么返回一个函数包裹的表达式
   if (!handler.modifiers) {
     return isMethodPath || isFunctionExpression
       ? handler.value
       : `function($event){${handler.value}}` // inline statement
   } else {
+    // 对于有 modifiers 的情况，则对各种不同的 modifiers 情况做不同处理，添加相应的代码串。
     let code = ''
     let genModifierCode = ''
     const keys = []

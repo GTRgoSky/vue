@@ -78,6 +78,7 @@ export function renderMixin (Vue: Class<Component>) {
       }
     }
 
+    // _parentVNode.data.scopedSlots 对应的就是我们在父组件通过执行 resolveScopedSlots 返回的对象
     vm.$scopedSlots = (_parentVnode && _parentVnode.data.scopedSlots) || emptyObject
 
     // set parent vnode. this allows render functions to have access
