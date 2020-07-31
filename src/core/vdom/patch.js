@@ -751,6 +751,7 @@ export function createPatchFunction (backend) {
       }
     }
 
+    // 渲染的最后一步
     invokeInsertHook(vnode, insertedVnodeQueue, isInitialPatch)
     return vnode.elm
   }

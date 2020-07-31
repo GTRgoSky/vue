@@ -4,6 +4,8 @@ import { inBrowser, isIE9 } from 'core/util/index'
 import { addClass, removeClass } from './class-util'
 import { remove, extend, cached } from 'shared/util'
 
+// 通过 autoCssTransition 处理 name 属性，生成一个用来描述各个阶段的 Class 名称的对象，扩展到 def 中并返回给 data
+// 可以从 data 中获取到过渡相关的所有数据。
 export function resolveTransition (def?: string | Object): ?Object {
   if (!def) {
     return
@@ -64,12 +66,15 @@ const raf = inBrowser
     : setTimeout
   : /* istanbul ignore next */ fn => fn()
 
+// 一个简单的 requestAnimationFrame 的实现
+// 它的参数 fn 会在下一帧执行
 export function nextFrame (fn: Function) {
   raf(() => {
     raf(fn)
   })
 }
 
+// 给当前 DOM 元素 el 添加样式 cls
 export function addTransitionClass (el: any, cls: string) {
   const transitionClasses = el._transitionClasses || (el._transitionClasses = [])
   if (transitionClasses.indexOf(cls) < 0) {
@@ -78,6 +83,7 @@ export function addTransitionClass (el: any, cls: string) {
   }
 }
 
+// 把 startClass 移除
 export function removeTransitionClass (el: any, cls: string) {
   if (el._transitionClasses) {
     remove(el._transitionClasses, cls)

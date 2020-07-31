@@ -36,6 +36,8 @@ function resetSchedulerState () {
 /**
  * Flush both queues and run the watchers.
  */
+// 所有的渲染完毕，在 nextTick后会执行 flushSchedulerQueue
+// (关联keep-alive --- queueActivatedComponent --- activatedChildren)
 function flushSchedulerQueue () {
   flushing = true
   let watcher, id
@@ -91,6 +93,7 @@ function flushSchedulerQueue () {
   resetSchedulerState()
 
   // call component updated and activated hooks
+  // 遍历所有的 activatedChildren
   callActivatedHooks(activatedQueue)
   callUpdatedHooks(updatedQueue)
 
@@ -116,6 +119,8 @@ function callUpdatedHooks (queue) {
  * Queue a kept-alive component that was activated during patch.
  * The queue will be processed after the entire tree has been patched.
  */
+// 把当前 vm 实例添加到 activatedChildren 数组中
+// 等所有的渲染完毕，在 nextTick后会执行 flushSchedulerQueue
 export function queueActivatedComponent (vm: Component) {
   // setting _inactive to false here so that a render function can
   // rely on checking whether it's in an inactive tree (e.g. router-view)
@@ -123,9 +128,11 @@ export function queueActivatedComponent (vm: Component) {
   activatedChildren.push(vm)
 }
 
+//
 function callActivatedHooks (queue) {
   for (let i = 0; i < queue.length; i++) {
     queue[i]._inactive = true
+    // 通过队列调的方式就是把整个 activated 时机延后了
     activateChildComponent(queue[i], true /* true */)
   }
 }

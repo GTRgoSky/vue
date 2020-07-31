@@ -3,6 +3,7 @@
 import { createFnInvoker } from './update-listeners'
 import { remove, isDef, isUndef, isTrue } from 'shared/util'
 
+// 把 hook 函数合并到 def.data.hook[hookey] 中，生成新的 invoker
 export function mergeVNodeHook (def: Object, hookKey: string, hook: Function) {
   let invoker
   const oldHook = def[hookKey]
@@ -16,6 +17,8 @@ export function mergeVNodeHook (def: Object, hookKey: string, hook: Function) {
 
   if (isUndef(oldHook)) {
     // no existing hook
+    // 事件章节 - 依次调用每个hook
+    // <transition> 过程中合并的 insert 钩子函数
     invoker = createFnInvoker([wrappedHook])
   } else {
     /* istanbul ignore if */

@@ -80,8 +80,10 @@ const componentVNodeHooks = {
       // 对于同步渲染的子组件而言，mounted 钩子函数的执行顺序也是先子后父。
       callHook(componentInstance, 'mounted')
     }
+    // 如果是在keep-alive中
     if (vnode.data.keepAlive) {
       if (context._isMounted) {
+        // 如果被包裹的组件执行过 mounted
         // vue-router#1212
         // During updates, a kept-alive component's child components may
         // change, so directly walking the tree here may call activated hooks
@@ -89,6 +91,7 @@ const componentVNodeHooks = {
         // be processed after the whole patch process ended.
         queueActivatedComponent(componentInstance)
       } else {
+        // 否则
         activateChildComponent(componentInstance, true /* direct */)
       }
     }
@@ -102,6 +105,8 @@ const componentVNodeHooks = {
         // 然后就会执行 beforeDestroy & destroyed 两个钩子函数。
         componentInstance.$destroy()
       } else {
+        // 在keep-alive中
+        // 发生在 vnode 的 destory 钩子函数 不销毁
         deactivateChildComponent(componentInstance, true /* direct */)
       }
     }
