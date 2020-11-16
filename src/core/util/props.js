@@ -71,6 +71,7 @@ export function validateProp (
 
 /**
  * Get the default value of a prop.
+ * 获取prop的默认值
  */
 function getPropDefaultValue (vm: ?Component, prop: PropOptions, key: string): any {
   // no default, return undefined
