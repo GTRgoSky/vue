@@ -79,7 +79,7 @@ export function initState (vm: Component) {
  * 当我们修改props会触发依赖，通知子组件从新渲染。
  */
 function initProps (vm: Component, propsOptions: Object) {
-  // 从父组件传递的 prop 数据
+  // 从父组件传递的 prop 数据 - 标签上写的数据
   const propsData = vm.$options.propsData || {}
   const props = vm._props = {}
   // cache prop keys so that future props updates can iterate using Array
@@ -87,6 +87,7 @@ function initProps (vm: Component, propsOptions: Object) {
   const keys = vm.$options._propKeys = []
   const isRoot = !vm.$parent
   // root instance props should be converted
+  // toggle： 切换
   // 对于非根实例的情况，我们会执行 toggleObserving(false)，
   if (!isRoot) {
     toggleObserving(false)

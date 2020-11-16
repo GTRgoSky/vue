@@ -34,6 +34,7 @@ export function validateProp (
 ): any {
   // 获取自身prop得相应对象
   const prop = propOptions[key]
+  // absent： 缺席
   // 如果父级有对应的key，则为false
   const absent = !hasOwn(propsData, key)
   let value = propsData[key]

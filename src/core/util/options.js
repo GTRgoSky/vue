@@ -234,9 +234,11 @@ const defaultStrat = function (parentVal: any, childVal: any): any {
     : childVal
 }
 /**
- * Ensure all props option syntax are normalized into the
+ * Ensure all props option syntax are normalized（格式化/标准化） into the
  * Object-based format.
- * 把我们编写的 props 转成对象格式，因为实际上 props 除了对象格式，还允许写成数组格式。
+ *
+ * 目的： 把我们编写的 props 转成对象格式，因为实际上 props 除了对象格式，还允许写成数组格式。
+ *
  * 当 props 是一个数组，每一个数组元素 prop 只能是一个 string，表示 prop 的 key，转成驼峰格式，prop 的类型为空。
  * --》props: ['name', 'nick-name'] ===》 options.props = {name: { type: null },nickName: { type: null }}
  * 当 props 是一个对象，对于 props 中每个 prop 的 key，我们会转驼峰格式，而它的 value，如果不是一个对象，我们就把它规范成一个对象。
@@ -331,7 +333,7 @@ function assertObjectType (name: string, value: any, vm: ?Component) {
  * 处理我们定义组件的对象 option，然后挂载到组件的实例 this.$options 中。
  * 合并两个选项对象-得到一个新的。
  * 在实例化和继承中使用的核心实用程序
- * 合并父子得VUE配置，（data、watch、computed、methods等数据项）并且以父级配置为主（父子都有时）
+ * 合并父子得VUE配置，（data、watch、computed、methods等数据项）并且以子级配置为主（父子都有时）
  * 主要功能就是把 parent 和 child 这两个对象根据一些合并策略，合并成一个新对象并返回
  */
 export function mergeOptions (
