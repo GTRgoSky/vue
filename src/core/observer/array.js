@@ -17,7 +17,7 @@ export const arrayMethods = Object.create(arrayProto)
  * 并且再调用 ob.dep.notify() 手动触发依赖通知，
  * 这就很好地解释了之前的示例中调用 vm.items.splice(newLength) 方法可以检测到变化。
  */
-;[
+const methodsToPatch = [
   'push',
   'pop',
   'shift',
@@ -26,7 +26,11 @@ export const arrayMethods = Object.create(arrayProto)
   'sort',
   'reverse'
 ]
-.forEach(function (method) {
+
+/**
+ * Intercept mutating methods and emit events
+ */
+methodsToPatch.forEach(function (method) {
   // cache original method
   const original = arrayProto[method]
   def(arrayMethods, method, function mutator (...args) {

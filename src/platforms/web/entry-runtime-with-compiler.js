@@ -6,8 +6,8 @@ import { mark, measure } from 'core/util/perf'
 
 import Vue from './runtime/index'
 import { query } from './util/index'
-import { shouldDecodeNewlines } from './util/compat'
 import { compileToFunctions } from './compiler/index'
+import { shouldDecodeNewlines, shouldDecodeNewlinesForHref } from './util/compat'
 
 const idToTemplate = cached(id => {
   const el = query(id)
@@ -50,7 +50,9 @@ Vue.prototype.$mount = function (el?: string | Element, hydrating?: boolean): Co
       // 把 el 或者 template 字符串转换成 render 方法
       // 进入编译核心 parse 阶段 的入口
       const { render, staticRenderFns } = compileToFunctions(template, {
+        outputSourceRange: process.env.NODE_ENV !== 'production',
         shouldDecodeNewlines,
+        shouldDecodeNewlinesForHref,
         delimiters: options.delimiters,
         comments: options.comments
       }, this)

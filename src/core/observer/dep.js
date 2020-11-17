@@ -2,6 +2,7 @@
 //  依赖管理
 import type Watcher from './watcher'
 import { remove } from '../util/index'
+import config from '../config'
 
 let uid = 0
 
@@ -39,23 +40,30 @@ export default class Dep {
     // 当设置data时执行这里，执行每个watcher实例的update方法更新视图
     // stabilize the subscriber list first
     const subs = this.subs.slice() // sub里每个都是watcher
+    if (process.env.NODE_ENV !== 'production' && !config.async) {
+      // subs aren't sorted in scheduler if not running async
+      // we need to sort them now to make sure they fire in correct
+      // order
+      subs.sort((a, b) => a.id - b.id)
+    }
     for (let i = 0, l = subs.length; i < l; i++) {
       subs[i].update()
     }
   }
 }
 
-// the current target watcher being evaluated.
-// this is globally unique because there could be only one
-// watcher being evaluated at any time.
+// The current target watcher being evaluated.
+// This is globally unique because only one watcher
+// can be evaluated at a time.
 Dep.target = null
 const targetStack = []
 
-export function pushTarget (_target: Watcher) {
-  if (Dep.target) targetStack.push(Dep.target) // 保存上一个Watcher实例
-  Dep.target = _target
+export function pushTarget (target: ?Watcher) {
+  targetStack.push(target) // 保存上一个Watcher实例
+  Dep.target = target
 }
 
 export function popTarget () {
-  Dep.target = targetStack.pop() // 获取上一个Watcher实例
+  targetStack.pop()
+  Dep.target = targetStack[targetStack.length - 1] // 获取上一个Watcher实例
 }

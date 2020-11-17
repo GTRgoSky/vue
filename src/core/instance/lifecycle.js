@@ -4,23 +4,32 @@ import config from '../config'
 import Watcher from '../observer/watcher'
 import { mark, measure } from '../util/perf'
 import { createEmptyVNode } from '../vdom/vnode'
-import { observerState } from '../observer/index'
 import { updateComponentListeners } from './events'
 import { resolveSlots } from './render-helpers/resolve-slots'
+import { toggleObserving } from '../observer/index'
+import { pushTarget, popTarget } from '../observer/dep'
 
 import {
   warn,
   noop,
   remove,
-  handleError,
   emptyObject,
-  validateProp
+  validateProp,
+  invokeWithErrorHandling
 } from '../util/index'
 
 export let activeInstance: any = null
 export let isUpdatingChildComponent: boolean = false
 
 // 在 $mount 之前会调用
+export function setActiveInstance(vm: Component) {
+  const prevActiveInstance = activeInstance
+  activeInstance = vm
+  return () => {
+    activeInstance = prevActiveInstance
+  }
+}
+
 export function initLifecycle (vm: Component) {
   const options = vm.$options
 
@@ -54,19 +63,13 @@ export function lifecycleMixin (Vue: Class<Component>) {
   // 用于渲染 VNode
   Vue.prototype._update = function (vnode: VNode, hydrating?: boolean) {
     const vm: Component = this
-    if (vm._isMounted) { // 已经执行过
-      callHook(vm, 'beforeUpdate')
-    }
     const prevEl = vm.$el
     const prevVnode = vm._vnode
     // 用 prevActiveInstance 保留上一次的 activeInstance
     // 实际上，prevActiveInstance 和当前的 vm 是一个父子关系，
     // 当一个 vm 实例完成它的所有子树的 patch 或者 update 过程后，activeInstance 会回到它的父实例
-    const prevActiveInstance = activeInstance
-    // 当前的 vm 赋值给 activeInstance
-    activeInstance = vm
-
-    // 这个 vnode 是通过 vm._render() 返回的组件渲染 VNode
+    const restoreActiveInstance = setActiveInstance(vm)
+      // 这个 vnode 是通过 vm._render() 返回的组件渲染 VNode
     vm._vnode = vnode
 
     // Vue.prototype.__patch__ is injected in entry points
@@ -74,24 +77,16 @@ export function lifecycleMixin (Vue: Class<Component>) {
     // 组件更新的过程，会执行
     if (!prevVnode) {
       // initial render
-      // 在 src\platforms\web\runtime\index.js 赋值，在浏览器中 vm.__patch__ == patch
+// 在 src\platforms\web\runtime\index.js 赋值，在浏览器中 vm.__patch__ == patch
       vm.$el = vm.__patch__(
         // vm.$el 绑定的DOM 对象(id=app) <div id="app"> </div>
         // 非服务端 hydrating -》 false
-        vm.$el, vnode, hydrating, false /* removeOnly */,
-        vm.$options._parentElm,
-        vm.$options._refElm
-      )
-      // no need for the ref nodes after initial patch
-      // this prevents keeping a detached DOM tree in memory (#5851)
-      vm.$options._parentElm = vm.$options._refElm = null
+        vm.$el, vnode, hydrating, false /* removeOnly */)
     } else {
       // updates
       vm.$el = vm.__patch__(prevVnode, vnode)
     }
-
-    // 保持当前上下文的 Vue 实例
-    activeInstance = prevActiveInstance
+    restoreActiveInstance()
     // update __vue__ reference
     if (prevEl) {
       prevEl.__vue__ = null
@@ -185,8 +180,17 @@ export function mountComponent (
     vm._update(vm._render(), hydrating)
   }
 
+  // we set this to vm._watcher inside the watcher's constructor
+  // since the watcher's initial patch may call $forceUpdate (e.g. inside child
+  // component's mounted hook), which relies on vm._watcher being already defined
   // Watcher 在这里起到两个作用，一个是初始化的时候会执行回调函数，另一个是当 vm 实例中的监测的数据发生变化的时候执行回调函数
-  vm._watcher = new Watcher(vm, updateComponent, noop)
+  new Watcher(vm, updateComponent, noop, {
+    before () {
+      if (vm._isMounted && !vm._isDestroyed) {
+        callHook(vm, 'beforeUpdate')
+      }
+    }
+  }, true /* isRenderWatcher */)
   hydrating = false
 
   // manually mounted instance, call mounted on self
@@ -209,7 +213,7 @@ export function updateChildComponent (
   vm: Component,
   propsData: ?Object, // 父组件传递的 props 数据
   listeners: ?Object,
-  parentVnode: VNode,
+  parentVnode: MountedComponentVNode,
   renderChildren: ?Array<VNode>
 ) {
   if (process.env.NODE_ENV !== 'production') {
@@ -217,13 +221,27 @@ export function updateChildComponent (
   }
 
   // determine whether component has slot children
-  // we need to do this before overwriting $options._renderChildren
+  // we need to do this before overwriting $options._renderChildren.
+
+  // check if there are dynamic scopedSlots (hand-written or compiled but with
+  // dynamic slot names). Static scoped slots compiled from template has the
+  // "$stable" marker.
+  const newScopedSlots = parentVnode.data.scopedSlots
+  const oldScopedSlots = vm.$scopedSlots
+  const hasDynamicScopedSlot = !!(
+    (newScopedSlots && !newScopedSlots.$stable) ||
+    (oldScopedSlots !== emptyObject && !oldScopedSlots.$stable) ||
+    (newScopedSlots && vm.$scopedSlots.$key !== newScopedSlots.$key)
+  )
+
+  // Any static slot children from the parent may have changed during parent's
+  // update. Dynamic scoped slots may also have changed. In such cases, a forced
+  // update is necessary to ensure correctness.
   // 判断是否含有slot
-  const hasChildren = !!(
+  const needsForceUpdate = !!(
     renderChildren ||               // has new static slots
     vm.$options._renderChildren ||  // has old static slots
-    parentVnode.data.scopedSlots || // has new scoped slots
-    vm.$scopedSlots !== emptyObject // has old scoped slots
+    hasDynamicScopedSlot
   )
 
   vm.$options._parentVnode = parentVnode
@@ -237,34 +255,35 @@ export function updateChildComponent (
   // update $attrs and $listeners hash
   // these are also reactive so they may trigger child update if the child
   // used them during render
-  vm.$attrs = (parentVnode.data && parentVnode.data.attrs) || emptyObject
+  vm.$attrs = parentVnode.data.attrs || emptyObject
   vm.$listeners = listeners || emptyObject
 
   // update props
   if (propsData && vm.$options.props) {
-    observerState.shouldConvert = false
+    toggleObserving(false)
     const props = vm._props // 子组件的 props 值，
     const propKeys = vm.$options._propKeys || [] // initProps 过程中，缓存的子组件中定义的所有 prop 的 key
     for (let i = 0; i < propKeys.length; i++) {
       const key = propKeys[i]
       // 重新验证和计算新的 prop 数据
       // 更新 vm._props，也就是子组件的 props
-      props[key] = validateProp(key, vm.$options.props, propsData, vm)
+      const propOptions: any = vm.$options.props // wtf flow?
+      props[key] = validateProp(key, propOptions, propsData, vm)
     }
-    observerState.shouldConvert = true
+    toggleObserving(true)
     // keep a copy of raw propsData
     vm.$options.propsData = propsData
   }
 
   // update listeners
-  if (listeners) {
-    const oldListeners = vm.$options._parentListeners
-    vm.$options._parentListeners = listeners
-    updateComponentListeners(vm, listeners, oldListeners)
-  }
+  listeners = listeners || emptyObject
+  const oldListeners = vm.$options._parentListeners
+  vm.$options._parentListeners = listeners
+  updateComponentListeners(vm, listeners, oldListeners)
+
   // resolve slots + force update if has children
   // 如果有slot
-  if (hasChildren) {
+  if (needsForceUpdate) {
     vm.$slots = resolveSlots(renderChildren, parentVnode.context)
     // 触发keep-alive的 $forceUpdate 方法
     // 重新执行 <keep-alive> 的 render 方法
@@ -320,19 +339,19 @@ export function deactivateChildComponent (vm: Component, direct?: boolean) {
 }
 
 export function callHook (vm: Component, hook: string) {
+  // #7573 disable dep collection when invoking lifecycle hooks
+  pushTarget()
   const handlers = vm.$options[hook]
+  const info = `${hook} hook`
   if (handlers) {
     for (let i = 0, j = handlers.length; i < j; i++) {
-      try {
         // 执行生命周期
-        handlers[i].call(vm)
-      } catch (e) {
-        handleError(e, vm, `${hook} hook`)
-      }
+      invokeWithErrorHandling(handlers[i], vm, null, vm, info)
     }
   }
   if (vm._hasHookEvent) {
     // 建立生命周期钩子,可以用vm.$on('hook:created', () =>{}) 来触发钩子
     vm.$emit('hook:' + hook)
   }
+  popTarget()
 }

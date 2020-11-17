@@ -43,7 +43,7 @@ function pruneCacheEntry (
 ) {
   const cached = cache[key]
   // 如果要删除的缓存的组件 tag 不是当前渲染组件 tag，执行删除缓存的组件实例的 $destroy 方法 (触发 beforeDestroy 和 destroyed 的钩子)
-  if (cached && cached !== current) {
+  if (cached && (!current || cached.tag !== current.tag)) {
     cached.componentInstance.$destroy()
   }
   cache[key] = null
@@ -76,30 +76,34 @@ export default {
     }
   },
 
-  watch: {
-    // 观测 include 和 exclude 的变化，对缓存做处理
-    include (val: string | RegExp | Array<string>) {
+   // 观测 include 和 exclude 的变化，对缓存做处理
+  mounted () {
+    this.$watch('include', val => {
       pruneCache(this, name => matches(val, name))
-    },
-    exclude (val: string | RegExp | Array<string>) {
+    })
+    this.$watch('exclude', val => {
       pruneCache(this, name => !matches(val, name))
-    }
+    })
   },
 
   render () {
-    // 1、首先获取第一个子元素的 vnode
+    const slot = this.$slots.default
+      // 1、首先获取第一个子元素的 vnode
     // 只处理第一个子元素，
-    const vnode: VNode = getFirstComponentChild(this.$slots.default)
+    const vnode: VNode = getFirstComponentChild(slot)
     const componentOptions: ?VNodeComponentOptions = vnode && vnode.componentOptions
     if (componentOptions) {
       // check pattern
       // 判断当前组件名称（要有组件名），和 include、exclude 的关系
       const name: ?string = getComponentName(componentOptions)
+      const { include, exclude } = this
       // 如果匹配了排除，或者不匹配了包含且有名称，则直接返回vnode，否则走下一步
-      if (name && (
-        (this.include && !matches(this.include, name)) ||
-        (this.exclude && matches(this.exclude, name))
-      )) {
+      if (
+        // not included
+        (include && (!name || !matches(include, name))) ||
+        // excluded
+        (exclude && name && matches(exclude, name))
+      ) {
         return vnode
       }
 
@@ -130,6 +134,6 @@ export default {
 
       vnode.data.keepAlive = true
     }
-    return vnode
+    return vnode || (slot && slot[0])
   }
 }

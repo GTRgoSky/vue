@@ -24,9 +24,11 @@ export const createCompiler = createCompilerCreator(function baseCompile (
 ): CompiledResult {
   // 解析模板字符串生成 AST
   const ast = parse(template.trim(), options)
-  // 优化语法树
-  optimize(ast, options)
-  // 生成代码
+  if (options.optimize !== false) {
+    // 优化语法树
+    optimize(ast, options)
+    // 生成代码
+  }
   const code = generate(ast, options)
   return {
     ast,

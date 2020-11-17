@@ -27,32 +27,31 @@ import {
   deactivateChildComponent
 } from '../instance/lifecycle'
 
-// hooks to be invoked on component VNodes during patch
-// 在初始化一个 Component 类型的 VNode 的过程中实现了几个钩子函数
+import {
+  isRecyclableComponent,
+  renderRecyclableComponentTemplate
+} from 'weex/runtime/recycle-list/render-component-template'
+
+// inline hooks to be invoked on component VNodes during patch
 const componentVNodeHooks = {
-  init (
-    vnode: VNodeWithData,
-    hydrating: boolean,
-    parentElm: ?Node,
-    refElm: ?Node
-  ): ?boolean {
-    if (!vnode.componentInstance || vnode.componentInstance._isDestroyed) {
+  init (vnode: VNodeWithData, hydrating: boolean): ?boolean {
+    if (
+      vnode.componentInstance &&
+      !vnode.componentInstance._isDestroyed &&
+      vnode.data.keepAlive
+    ) {
+      // kept-alive components, treat as a patch
+      const mountedNode: any = vnode // work around flow
+      componentVNodeHooks.prepatch(mountedNode, mountedNode)
+    } else {
       const child = vnode.componentInstance = createComponentInstanceForVnode(
         vnode,
-        activeInstance,
-        parentElm,
-        refElm
+        activeInstance
       )
       // componentVNodeHooks 的 init 钩子函数，在完成实例化的 _init 后
       // hydrating - 是否服务端渲染 - 》child.$mount(undefined, false)
       // 它最终会调用 mountComponent（147） 方法，进而执行 vm._render() 方法： src\core\instance\lifecycle.js
       child.$mount(hydrating ? vnode.elm : undefined, hydrating)
-    } else if (vnode.data.keepAlive) {
-      // keep-alive 如果是keep-alive的第二次渲染
-      // 这也就是被 <keep-alive> 包裹的组件在有缓存的时候就不会在执行组件的 created、mounted 等钩子函数的原因了
-      // kept-alive components, treat as a patch
-      const mountedNode: any = vnode // work around flow
-      componentVNodeHooks.prepatch(mountedNode, mountedNode)
     }
   },
 
@@ -121,7 +120,7 @@ export function createComponent (
   context: Component,
   children: ?Array<VNode>,
   tag?: string
-): VNode | void {
+): VNode | Array<VNode> | void {
   if (isUndef(Ctor)) {
     return
   }
@@ -157,7 +156,7 @@ export function createComponent (
   let asyncFactory
   if (isUndef(Ctor.cid)) {
     asyncFactory = Ctor
-    Ctor = resolveAsyncComponent(asyncFactory, baseCtor, context)
+    Ctor = resolveAsyncComponent(asyncFactory, baseCtor)
     if (Ctor === undefined) {
       // return a placeholder node for async component, which is rendered
       // as a comment node but preserves all the raw information for the node.
@@ -214,9 +213,9 @@ export function createComponent (
     }
   }
 
-  // merge component management hooks onto the placeholder node
-  // 合并组件管理挂钩到占位符节点 - 给VNode增加状态钩子
-  mergeHooks(data)
+  // install component management hooks onto the placeholder node
+    // 合并组件管理挂钩到占位符节点 - 给VNode增加状态钩子
+  installComponentHooks(data)
 
   // return a placeholder vnode
   const name = Ctor.options.name || tag
@@ -227,29 +226,30 @@ export function createComponent (
     { Ctor, propsData, listeners, tag, children }, // 传入props：所以我们可以通过 vnode.componentOptions.propsData 拿到 prop 数据。
     asyncFactory
   )
+
+  // Weex specific: invoke recycle-list optimized @render function for
+  // extracting cell-slot template.
+  // https://github.com/Hanks10100/weex-native-directive/tree/master/component
+  /* istanbul ignore if */
+  if (__WEEX__ && isRecyclableComponent(vnode)) {
+    return renderRecyclableComponentTemplate(vnode)
+  }
+
   return vnode
 }
 
 // 函数构造的一个内部组件的参数
 // 整个深度遍历过程
 export function createComponentInstanceForVnode (
-  vnode: any, // we know it's MountedComponentVNode but flow doesn't
-  parent: any, // activeInstance in lifecycle state
-  parentElm?: ?Node,
-  refElm?: ?Node
+  // we know it's MountedComponentVNode but flow doesn't
+  vnode: any,
+  // activeInstance in lifecycle state
+  parent: any
 ): Component {
-  // vnodeComponentOptions 子组件的option
-  const vnodeComponentOptions = vnode.componentOptions
   const options: InternalComponentOptions = {
     _isComponent: true, // 为 true 表示它是一个组件
-    parent, // 当前激活的组件实例
-    propsData: vnodeComponentOptions.propsData,
-    _componentTag: vnodeComponentOptions.tag,
     _parentVnode: vnode,
-    _parentListeners: vnodeComponentOptions.listeners,
-    _renderChildren: vnodeComponentOptions.children,
-    _parentElm: parentElm || null,
-    _refElm: refElm || null
+    parent // 当前激活的组件实例
   }
   // check inline-template render functions
   const inlineTemplate = vnode.data.inlineTemplate
@@ -257,37 +257,36 @@ export function createComponentInstanceForVnode (
     options.render = inlineTemplate.render
     options.staticRenderFns = inlineTemplate.staticRenderFns
   }
-  // 对应的就是子组件的构造函数
+// 对应的就是子组件的构造函数
   // 它实际上是继承于 Vue 的一个构造器 Sub
   // 相当于 new Sub(options)
   // 指向 Vue.extend 的返回值 Sub
-  return new vnodeComponentOptions.Ctor(options)
+  return new vnode.componentOptions.Ctor(options)
 }
 
-// installComponentHooks
-// 把 componentVNodeHooks 的钩子函数合并到 data.hook 中
-function mergeHooks (data: VNodeData) {
-  if (!data.hook) {
-    data.hook = {}
-  }
+function installComponentHooks (data: VNodeData) {
+  const hooks = data.hook || (data.hook = {})
   for (let i = 0; i < hooksToMerge.length; i++) {
     const key = hooksToMerge[i]
-    // 获取已经存在的hook
-    const fromParent = data.hook[key]
-    // 获取默认hook
-    const ours = componentVNodeHooks[key]
-    // 如果某个时机的钩子已经存在 data.hook 中，那么通过执行 mergeHook 函数做合并，在最终执行的时候，依次执行这两个钩子函数即可。
+    const existing = hooks[key]
+     // 获取默认hook
+    const toMerge = componentVNodeHooks[key]
+    if (existing !== toMerge && !(existing && existing._merged)) {
+       // 如果某个时机的钩子已经存在 data.hook 中，那么通过执行 mergeHook 函数做合并，在最终执行的时候，依次执行这两个钩子函数即可。
     // 如果自定义了并且和默认的一样，则都执行，并且先执行默认的
-    data.hook[key] = fromParent ? mergeHook(ours, fromParent) : ours
+      hooks[key] = existing ? mergeHook(toMerge, existing) : toMerge
+    }
   }
 }
 
-// 依次执行one two
-function mergeHook (one: Function, two: Function): Function {
-  return function (a, b, c, d) {
-    one(a, b, c, d)
-    two(a, b, c, d)
+function mergeHook (f1: any, f2: any): Function {
+  const merged = (a, b) => {
+    // flow complains about extra args which is why we use any
+    f1(a, b)
+    f2(a, b)
   }
+  merged._merged = true
+  return merged
 }
 
 // transform component v-model info (value and callback) into
@@ -297,11 +296,19 @@ function transformModel (options, data: any) {
   // 组件的 value prop 以及派发的 input 事件名是可配的，可以看到 transformModel 中对这部分的处理
   const prop = (options.model && options.model.prop) || 'value'
   const event = (options.model && options.model.event) || 'input'
-  ;(data.props || (data.props = {}))[prop] = data.model.value
+  ;(data.attrs || (data.attrs = {}))[prop] = data.model.value
   const on = data.on || (data.on = {})
-  if (isDef(on[event])) {
-    on[event] = [data.model.callback].concat(on[event])
+  const existing = on[event]
+  const callback = data.model.callback
+  if (isDef(existing)) {
+    if (
+      Array.isArray(existing)
+        ? existing.indexOf(callback) === -1
+        : existing !== callback
+    ) {
+      on[event] = [callback].concat(existing)
+    }
   } else {
-    on[event] = data.model.callback
+    on[event] = callback
   }
 }

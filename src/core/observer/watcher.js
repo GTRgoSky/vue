@@ -1,18 +1,20 @@
 /* @flow */
 
-import { queueWatcher } from './scheduler'
-import Dep, { pushTarget, popTarget } from './dep'
-
 import {
   warn,
   remove,
   isObject,
   parsePath,
   _Set as Set,
-  handleError
+  handleError,
+  noop
 } from '../util/index'
 
-import type { ISet } from '../util/index'
+import { traverse } from './traverse'
+import { queueWatcher } from './scheduler'
+import Dep, { pushTarget, popTarget } from './dep'
+
+import type { SimpleSet } from '../util/index'
 
 let uid = 0
 
@@ -36,8 +38,9 @@ export default class Watcher {
   active: boolean;
   deps: Array<Dep>;
   newDeps: Array<Dep>;
-  depIds: ISet;
-  newDepIds: ISet;
+  depIds: SimpleSet;
+  newDepIds: SimpleSet;
+  before: ?Function;
   getter: Function;
   value: any;
 
@@ -45,9 +48,13 @@ export default class Watcher {
     vm: Component,
     expOrFn: string | Function,
     cb: Function,
-    options?: Object
+    options?: ?Object,
+    isRenderWatcher?: boolean
   ) {
     this.vm = vm
+    if (isRenderWatcher) {
+      vm._watcher = this
+    }
     vm._watchers.push(this)
     // options
     if (options) {
@@ -55,6 +62,7 @@ export default class Watcher {
       this.user = !!options.user // 当是watch时为true
       this.lazy = !!options.lazy // 当时computed时为true
       this.sync = !!options.sync
+      this.before = options.before
     } else {
       this.deep = this.user = this.lazy = this.sync = false
     }
@@ -77,7 +85,13 @@ export default class Watcher {
     } else {
       this.getter = parsePath(expOrFn)
       if (!this.getter) {
-        this.getter = function () {}
+        this.getter = noop
+        process.env.NODE_ENV !== 'production' && warn(
+          `Failed watching path: "${expOrFn}" ` +
+          'Watcher only accepts simple dot-delimited paths. ' +
+          'For full control, use a function instead.',
+          vm
+        )
       }
     }
     this.value = this.lazy
@@ -255,44 +269,5 @@ export default class Watcher {
       }
       this.active = false
     }
-  }
-}
-
-/**
- * Recursively traverse an object to evoke all converted
- * getters, so that every nested property inside the object
- * is collected as a "deep" dependency.
- */
-// b保存已经记录过的深层次DepId，如果存在就不再深度遍历
-const seenObjects = new Set()
-
-// 对一个对象做深层递归遍历
-// 因为遍历过程中就是对一个子对象的访问，会触发它们的 getter 过程，
-// 这样就可以收集到依赖，也就是订阅它们变化的 watcher
-function traverse (val: any) {
-  seenObjects.clear()
-  _traverse(val, seenObjects)
-}
-
-function _traverse (val: any, seen: ISet) {
-  let i, keys
-  const isA = Array.isArray(val)
-  if ((!isA && !isObject(val)) || !Object.isExtensible(val)) {
-    return
-  }
-  if (val.__ob__) {
-    const depId = val.__ob__.dep.id
-    if (seen.has(depId)) {
-      return
-    }
-    seen.add(depId)
-  }
-  if (isA) {
-    i = val.length
-    while (i--) _traverse(val[i], seen)
-  } else {
-    keys = Object.keys(val)
-    i = keys.length
-    while (i--) _traverse(val[keys[i]], seen)
   }
 }

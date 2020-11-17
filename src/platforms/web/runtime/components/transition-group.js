@@ -14,6 +14,7 @@
 import { warn, extend } from 'core/util/index'
 import { addClass, removeClass } from '../class-util'
 import { transitionProps, extractTransitionData } from './transition'
+import { setActiveInstance } from 'core/instance/lifecycle'
 
 import {
   hasTransition,
@@ -32,6 +33,23 @@ delete props.mode
 
 export default {
   props,
+
+  beforeMount () {
+    const update = this._update
+    this._update = (vnode, hydrating) => {
+      const restoreActiveInstance = setActiveInstance(this)
+      // force removing pass
+      this.__patch__(
+        this._vnode,
+        this.kept,
+        false, // hydrating
+        true // removeOnly (!important, avoids unnecessary moves)
+      )
+      this._vnode = this.kept
+      restoreActiveInstance()
+      update.call(this, vnode, hydrating)
+    }
+  },
 
   render (h: Function) {
     // 1.定义一些变量
@@ -98,17 +116,6 @@ export default {
     return h(tag, null, children)
   },
 
-  beforeUpdate () {
-    // force removing pass
-    this.__patch__(
-      this._vnode,
-      this.kept,
-      false, // hydrating
-      true // removeOnly (!important, avoids unnecessary moves)
-    )
-    this._vnode = this.kept
-  },
-
   // 我们在实现元素的插入和删除
   // 除了重新执行 render 函数渲染新的节点外，还要触发 updated 钩子函数
   updated () {
@@ -127,21 +134,23 @@ export default {
     children.forEach(applyTranslation)
 
     // force reflow to put everything in position
-    const body: any = document.body
-    // 通过 body.offsetHeight 强制触发浏览器重绘
-    const f: number = body.offsetHeight // eslint-disable-line
+    // assign to this to avoid being removed in tree-shaking
+    // $flow-disable-line
+    this._reflow = document.body.offsetHeight
 
     // 遍历子元素实现 move 过渡
     children.forEach((c: VNode) => {
       if (c.data.moved) {
-        var el: any = c.elm
-        var s: any = el.style
-        // 先给子节点添加 moveClass
+        const el: any = c.elm
+        const s: any = el.style
         addTransitionClass(el, moveClass)
         // 接着把子节点的 style.transform 设置为空
         s.transform = s.WebkitTransform = s.transitionDuration = ''
         // 并且接下来会监听 transitionEndEvent 过渡结束的事件，做一些清理的操作。
         el.addEventListener(transitionEndEvent, el._moveCb = function cb (e) {
+          if (e && e.target !== el) {
+            return
+          }
           if (!e || /transform$/.test(e.propertyName)) {
             el.removeEventListener(transitionEndEvent, cb)
             el._moveCb = null

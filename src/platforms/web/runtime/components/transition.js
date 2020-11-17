@@ -84,6 +84,11 @@ function isSameChild (child: VNode, oldChild: VNode): boolean {
   return oldChild.key === child.key && oldChild.tag === child.tag
 }
 
+
+const isNotTextNode = (c: VNode) => c.tag || isAsyncPlaceholder(c)
+
+const isVShowDirective = d => d.name === 'show'
+
 // 入口
 // 抽象组件，同样直接实现 render 函数，同样利用了默认插槽
 export default {
@@ -93,16 +98,15 @@ export default {
 
   // 主要作用就是渲染生成 vnode
   render (h: Function) {
-    // 1·处理 children
-    let children: ?Array<VNode> = this.$options._renderChildren
+    let children: any = this.$slots.default
     if (!children) {
       return
     }
 
     // filter out text nodes (possible whitespaces)
-    // 先从默认插槽中获取 <transition> 包裹的子节点，并且判断了子节点的长度，如果长度为 0，则直接返回，
+      // 先从默认插槽中获取 <transition> 包裹的子节点，并且判断了子节点的长度，如果长度为 0，则直接返回，
     // 否则判断长度如果大于 1，也会在开发环境报警告，因为 <transition> 组件是只能包裹一个子节点的。
-    children = children.filter((c: VNode) => c.tag || isAsyncPlaceholder(c))
+    children = children.filter(isNotTextNode)
     /* istanbul ignore if */
     if (!children.length) {
       return
@@ -174,7 +178,7 @@ export default {
 
     // mark v-show
     // so that the transition module can hand over the control to the directive
-    if (child.data.directives && child.data.directives.some(d => d.name === 'show')) {
+    if (child.data.directives && child.data.directives.some(isVShowDirective)) {
       child.data.show = true
     }
 
@@ -182,7 +186,9 @@ export default {
       oldChild &&
       oldChild.data &&
       !isSameChild(child, oldChild) &&
-      !isAsyncPlaceholder(oldChild)
+      !isAsyncPlaceholder(oldChild) &&
+      // #6687 component root is a comment node
+      !(oldChild.componentInstance && oldChild.componentInstance._vnode.isComment)
     ) {
       // replace old child transition data with fresh one
       // important for dynamic transitions!

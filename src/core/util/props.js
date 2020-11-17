@@ -1,7 +1,7 @@
 /* @flow */
 
 import { warn } from './debug'
-import { observe, observerState } from '../observer/index'
+import { observe, toggleObserving, shouldObserve } from '../observer/index'
 import {
   hasOwn,
   isObject,
@@ -38,16 +38,22 @@ export function validateProp (
   // 如果父级有对应的key，则为false
   const absent = !hasOwn(propsData, key)
   let value = propsData[key]
+  // boolean casting
   // handle boolean props
   // 处理 boolean 类型
   // 首先判断是否是Boolean类型
   // prop 可能是数组，如果市数组就要遍历查询是否包含满足类型得值
-  if (isType(Boolean, prop.type)) {
-    // 如果 父级没用对应的prop，且自身没有default属性，则value = false
+  const booleanIndex = getTypeIndex(Boolean, prop.type)
+  if (booleanIndex > -1) {
     if (absent && !hasOwn(prop, 'default')) {
       value = false
-    } else if (!isType(String, prop.type) && (value === '' || value === hyphenate(key))) {
-      value = true
+    } else if (value === '' || value === hyphenate(key)) {
+      // only cast empty string / same name to boolean if
+      // boolean has higher priority
+      const stringIndex = getTypeIndex(String, prop.type)
+      if (stringIndex < 0 || booleanIndex < stringIndex) {
+        value = true
+      }
     }
   }
   // check default value
@@ -57,12 +63,16 @@ export function validateProp (
     value = getPropDefaultValue(vm, prop, key)
     // since the default value is a fresh copy,
     // make sure to observe it.
-    const prevShouldConvert = observerState.shouldConvert
-    observerState.shouldConvert = true
+    const prevShouldObserve = shouldObserve
+    toggleObserving(true)
     observe(value)
-    observerState.shouldConvert = prevShouldConvert
+    toggleObserving(prevShouldObserve)
   }
-  if (process.env.NODE_ENV !== 'production') {
+  if (
+    process.env.NODE_ENV !== 'production' &&
+    // skip validation for weex recycle-list child component props
+    !(__WEEX__ && isObject(value) && ('@binding' in value))
+  ) {
     // 执行 assertProp 做属性断言
     assertProp(prop, key, value, vm, absent)
   }
@@ -152,9 +162,7 @@ function assertProp (
   // 如果循环结束后 valid 仍然为 false，那么说明 prop 的值 value 与 prop 定义的类型都不匹配，
   if (!valid) {
     warn(
-      `Invalid prop: type check failed for prop "${name}".` +
-      ` Expected ${expectedTypes.map(capitalize).join(', ')}` +
-      `, got ${toRawType(value)}.`,
+      getInvalidTypeMessage(name, value, expectedTypes),
       vm
     )
     return
@@ -215,15 +223,59 @@ function getType (fn) {
   return match ? match[1] : ''
 }
 
-function isType (type, fn) {
-  if (!Array.isArray(fn)) {
-    return getType(fn) === getType(type)
+function isSameType (a, b) {
+  return getType(a) === getType(b)
+}
+
+function getTypeIndex (type, expectedTypes): number {
+  if (!Array.isArray(expectedTypes)) {
+    return isSameType(expectedTypes, type) ? 0 : -1
   }
-  for (let i = 0, len = fn.length; i < len; i++) {
-    if (getType(fn[i]) === getType(type)) {
-      return true
+  for (let i = 0, len = expectedTypes.length; i < len; i++) {
+    if (isSameType(expectedTypes[i], type)) {
+      return i
     }
   }
-  /* istanbul ignore next */
-  return false
+  return -1
+}
+
+function getInvalidTypeMessage (name, value, expectedTypes) {
+  let message = `Invalid prop: type check failed for prop "${name}".` +
+    ` Expected ${expectedTypes.map(capitalize).join(', ')}`
+  const expectedType = expectedTypes[0]
+  const receivedType = toRawType(value)
+  // check if we need to specify expected value
+  if (
+    expectedTypes.length === 1 &&
+    isExplicable(expectedType) &&
+    isExplicable(typeof value) &&
+    !isBoolean(expectedType, receivedType)
+  ) {
+    message += ` with value ${styleValue(value, expectedType)}`
+  }
+  message += `, got ${receivedType} `
+  // check if we need to specify received value
+  if (isExplicable(receivedType)) {
+    message += `with value ${styleValue(value, receivedType)}.`
+  }
+  return message
+}
+
+function styleValue (value, type) {
+  if (type === 'String') {
+    return `"${value}"`
+  } else if (type === 'Number') {
+    return `${Number(value)}`
+  } else {
+    return `${value}`
+  }
+}
+
+const EXPLICABLE_TYPES = ['string', 'number', 'boolean']
+function isExplicable (value) {
+  return EXPLICABLE_TYPES.some(elem => value.toLowerCase() === elem)
+}
+
+function isBoolean (...args) {
+  return args.some(elem => elem.toLowerCase() === 'boolean')
 }

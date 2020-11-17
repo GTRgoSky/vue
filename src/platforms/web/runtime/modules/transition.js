@@ -69,8 +69,8 @@ export function enter (vnode: VNodeWithData, toggleDisplay: ?() => void) {
   let context = activeInstance
   let transitionNode = activeInstance.$vnode
   while (transitionNode && transitionNode.parent) {
-    transitionNode = transitionNode.parent
     context = transitionNode.context
+    transitionNode = transitionNode.parent
   }
 
   // isAppear 表示当前上下文实例还没有 mounted
@@ -149,7 +149,7 @@ export function enter (vnode: VNodeWithData, toggleDisplay: ?() => void) {
     // 合并 insert 钩子函数
     // <transition> 过程中合并的 insert 钩子函数, 执行生命周期时执行
     // remove pending leave element on enter by injecting an insert hook
-    mergeVNodeHook(vnode.data.hook || (vnode.data.hook = {}), 'insert', () => {
+    mergeVNodeHook(vnode, 'insert', () => {
       const parent = el.parentNode
       const pendingNode = parent && parent._pending && parent._pending[vnode.key]
       if (pendingNode &&
@@ -171,19 +171,20 @@ export function enter (vnode: VNodeWithData, toggleDisplay: ?() => void) {
     addTransitionClass(el, startClass)
     addTransitionClass(el, activeClass)
     nextFrame(() => {
-      // 判断此时过渡没有被取消，则执行 addTransitionClass(el, toClass) 添加 toClass
-      addTransitionClass(el, toClass)
-      // 下一帧执行了 removeTransitionClass(el, startClass)
+    // 下一帧执行了 removeTransitionClass(el, startClass)
       removeTransitionClass(el, startClass)
-      // 判断 !userWantsControl，也就是用户不通过 enterHook 钩子函数控制动画
-      if (!cb.cancelled && !userWantsControl) {
-        // 如果用户指定了 explicitEnterDuration，则延时这个时间执行 cb(元素过度传 done)
-        if (isValidDuration(explicitEnterDuration)) {
-          setTimeout(cb, explicitEnterDuration)
-        } else {
-          // 通过 whenTransitionEnds(el, type, cb) 决定执行 cb 的时机：
+      if (!cb.cancelled) {
+        // 判断此时过渡没有被取消，则执行 addTransitionClass(el, toClass) 添加 toClass
+        addTransitionClass(el, toClass)
+        if (!userWantsControl) {
+          // 如果用户指定了 explicitEnterDuration，则延时这个时间执行 cb(元素过度传 done)
+          if (isValidDuration(explicitEnterDuration)) {
+            setTimeout(cb, explicitEnterDuration)
+          } else {
+             // 通过 whenTransitionEnds(el, type, cb) 决定执行 cb 的时机：
           // 利用了过渡动画的结束事件来决定 cb 函数的执行。
-          whenTransitionEnds(el, type, cb)
+            whenTransitionEnds(el, type, cb)
+          }
         }
       }
     })
@@ -213,12 +214,12 @@ export function leave (vnode: VNodeWithData, rm: Function) {
   // 解析过渡数据
   // 从 vnode.data.transition 中解析出过渡相关的一些数据
   const data = resolveTransition(vnode.data.transition)
-  if (isUndef(data)) {
+  if (isUndef(data) || el.nodeType !== 1) {
     return rm()
   }
 
   /* istanbul ignore if */
-  if (isDef(el._leaveCb) || el.nodeType !== 1) {
+  if (isDef(el._leaveCb)) {
     return
   }
 
@@ -283,7 +284,7 @@ export function leave (vnode: VNodeWithData, rm: Function) {
       return
     }
     // record leaving element
-    if (!vnode.data.show) {
+    if (!vnode.data.show && el.parentNode) {
       (el.parentNode._pending || (el.parentNode._pending = {}))[(vnode.key: any)] = vnode
     }
     beforeLeave && beforeLeave(el)
@@ -291,14 +292,15 @@ export function leave (vnode: VNodeWithData, rm: Function) {
       addTransitionClass(el, leaveClass)
       addTransitionClass(el, leaveActiveClass)
       nextFrame(() => {
-        addTransitionClass(el, leaveToClass)
         removeTransitionClass(el, leaveClass)
-
-        if (!cb.cancelled && !userWantsControl) {
-          if (isValidDuration(explicitLeaveDuration)) {
-            setTimeout(cb, explicitLeaveDuration)
-          } else {
-            whenTransitionEnds(el, type, cb)
+        if (!cb.cancelled) {
+          addTransitionClass(el, leaveToClass)
+          if (!userWantsControl) {
+            if (isValidDuration(explicitLeaveDuration)) {
+              setTimeout(cb, explicitLeaveDuration)
+            } else {
+              whenTransitionEnds(el, type, cb)
+            }
           }
         }
       })

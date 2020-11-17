@@ -8,6 +8,7 @@ import { initAssetRegisters } from './assets'
 import { set, del } from '../observer/index'
 import { ASSET_TYPES } from 'shared/constants'
 import builtInComponents from '../components/index'
+import { observe } from 'core/observer/index'
 
 import {
   warn,
@@ -36,6 +37,12 @@ export function initGlobalAPI (Vue: GlobalAPI) {
   Vue.set = set
   Vue.delete = del
   Vue.nextTick = nextTick
+
+  // 2.6 explicit observable API
+  Vue.observable = (obj: T): T => {
+    observe(obj)
+    return obj
+  }
 
   // 声明一个空对象
   Vue.options = Object.create(null)

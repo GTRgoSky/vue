@@ -304,7 +304,7 @@ function createComputedGetter (key) {
   }
 }
 
-function createGetterInvoker (fn) {
+function createGetterInvoker(fn) {
   return function computedGetter () {
     return fn.call(this, this)
   }

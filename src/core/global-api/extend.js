@@ -1,8 +1,8 @@
 /* @flow */
 
 import { ASSET_TYPES } from 'shared/constants'
-import { warn, extend, mergeOptions } from '../util/index'
 import { defineComputed, proxy } from '../instance/state'
+import { extend, mergeOptions, validateComponentName } from '../util/index'
 
 export function initExtend (Vue: GlobalAPI) {
   /**
@@ -34,6 +34,9 @@ export function initExtend (Vue: GlobalAPI) {
     }
 
     const name = extendOptions.name || Super.options.name
+    if (process.env.NODE_ENV !== 'production' && name) {
+      validateComponentName(name)
+    }
 
     const Sub = function VueComponent (options) {
       // 当我们去实例化 Sub 的时候，就会执行 this._init 逻辑再次走到了 Vue 实例的初始化逻辑

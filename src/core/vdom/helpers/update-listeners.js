@@ -1,13 +1,23 @@
 /* @flow */
 
-import { warn } from 'core/util/index'
-import { cached, isUndef } from 'shared/util'
+import {
+  warn,
+  invokeWithErrorHandling
+} from 'core/util/index'
+import {
+  cached,
+  isUndef,
+  isTrue,
+  isPlainObject
+} from 'shared/util'
 
 const normalizeEvent = cached((name: string): {
   name: string,
   once: boolean,
   capture: boolean,
-  passive: boolean
+  passive: boolean,
+  handler?: Function,
+  params?: Array<any>
 } => {
   // 根据我们的的事件名的一些特殊标识（之前在 addHandler 的时候添加上的）区分出这个事件是否有 once、capture、passive 等修饰符。
   // src\compiler\helpers.js （57）
@@ -25,7 +35,7 @@ const normalizeEvent = cached((name: string): {
   }
 })
 
-export function createFnInvoker (fns: Function | Array<Function>): Function {
+export function createFnInvoker (fns: Function | Array<Function>, vm: ?Component): Function {
   function invoker () {
     const fns = invoker.fns
     if (Array.isArray(fns)) {
@@ -33,11 +43,11 @@ export function createFnInvoker (fns: Function | Array<Function>): Function {
       // eg：<div @click="test" @click="test2"></div>
       const cloned = fns.slice()
       for (let i = 0; i < cloned.length; i++) {
-        cloned[i].apply(null, arguments)
+        invokeWithErrorHandling(cloned[i], null, arguments, vm, `v-on handler`)
       }
     } else {
       // return handler return value for single handlers
-      return fns.apply(null, arguments)
+      return invokeWithErrorHandling(fns, null, arguments, vm, `v-on handler`)
     }
   }
   // 每一次执行 invoker 函数都是从 invoker.fns 里取执行的回调函数
@@ -59,16 +69,22 @@ export function updateListeners (
   oldOn: Object,
   add: Function,
   remove: Function,
+  createOnceHandler: Function,
   vm: Component
 ) {
-  let name, cur, old, event
-  // 遍历 on 去添加事件监听
+  let name, def, cur, old, event
+   // 遍历 on 去添加事件监听
   for (name in on) {
     // 对于 on 的遍历。首先获得每一个事件名
-    cur = on[name]
+    def = cur = on[name]
     old = oldOn[name]
 
     event = normalizeEvent(name)
+    /* istanbul ignore if */
+    if (__WEEX__ && isPlainObject(def)) {
+      cur = def.handler
+      event.params = def.params
+    }
     if (isUndef(cur)) {
       process.env.NODE_ENV !== 'production' && warn(
         `Invalid handler for event "${event.name}": got ` + String(cur),
@@ -78,10 +94,13 @@ export function updateListeners (
       if (isUndef(cur.fns)) {
         // 对于第一次
         // 创建一个回调函数
-        cur = on[name] = createFnInvoker(cur)
+        cur = on[name] = createFnInvoker(cur, vm)
+      }
+      if (isTrue(event.once)) {
+        cur = on[name] = createOnceHandler(event.name, cur, event.capture)
       }
       // 完成一次事件绑定
-      add(event.name, cur, event.once, event.capture, event.passive)
+      add(event.name, cur, event.capture, event.passive, event.params)
     } else if (cur !== old) {
       // 当我们第二次执行该函数的时候，判断如果 cur !== old，
       // 那么只需要更改 old.fns = cur 把之前绑定的 involer.fns 赋值为新的回调函数即可

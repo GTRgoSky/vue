@@ -16,6 +16,7 @@ export function renderSlot (
   // this.$scopedSlots 在什么地方定义的呢？：
   // 在子组件的渲染函数执行前，在 vm_render（src/core/instance/render.js） 方法内
   const scopedSlotFn = this.$scopedSlots[name]
+  let nodes
   if (scopedSlotFn) { // scoped slot
     // 作用域插槽
     props = props || {}
@@ -28,9 +29,9 @@ export function renderSlot (
       }
       props = extend(extend({}, bindObject), props)
     }
-    return scopedSlotFn(props) || fallback
+    nodes = scopedSlotFn(props) || fallback
   } else {
-    /**
+/**
      * this.$slots 是如何获取的？：
      *  子组件的 init 时机是在父组件执行 patch 过程的时候，那这个时候父组件已经编译完成了
         并且子组件在 init 过程中会执行 initRender 函数，initRender 的时候获取到 vm.$slot，
@@ -40,18 +41,15 @@ export function renderSlot (
     // 默认插槽逻辑
     // 根据插槽名称获取到对应的 vnode 数组
     // 数组里的 vnode 都是在父组件创建的，这样就实现了在父组替换子组件插槽的内容了。所以vm指向父级
-    const slotNodes = this.$slots[name]
-    // warn duplicate slot usage
-    if (slotNodes && process.env.NODE_ENV !== 'production') {
-      slotNodes._rendered && warn(
-        `Duplicate presence of slot "${name}" found in the same render tree ` +
-        `- this will likely cause render errors.`,
-        this
-      )
-      slotNodes._rendered = true
-    }
+    nodes = this.$slots[name] || fallback
+  }
+
+  const target = props && props.slot
+  if (target) {
+    return this.$createElement('template', { slot: target }, nodes)
+  } else {
     // 返回它对应的 vnode 数组 || fallback
-    return slotNodes || fallback
+    return nodes
     // 对应的 slot 渲染成 vnodes，作为当前组件渲染 vnode 的 children
   }
 }
