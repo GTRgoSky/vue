@@ -199,7 +199,8 @@ const computedWatcherOptions = { lazy: true }
 // 计算属性是一个 computed watcher
 function initComputed (vm: Component, computed: Object) {
   // $flow-disable-line
-  // 创建一个空对象
+  // 创建一个 _computedWatchers 用来存储computed的 Watcher对象 空对象
+  // 这个watchers 和 _computedWatchers 指向同一个原型对象，所以操作watcher 影响 cW
   const watchers = vm._computedWatchers = Object.create(null)
   // computed properties are just getters during SSR
   const isSSR = isServerRendering()
