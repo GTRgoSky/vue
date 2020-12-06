@@ -92,6 +92,7 @@ export default class Watcher {
    */
   get () {
     // 将当前Wacther赋值给Dep.target
+    // 在 computed 流程中 this 指向的时 watchers[key]
     pushTarget(this)
     let value
     const vm = this.vm
