@@ -48,6 +48,7 @@ export default class Dep {
 // the current target watcher being evaluated.
 // this is globally unique because there could be only one
 // watcher being evaluated at any time.
+// Dep.target 永远指向一个Watcher的实例
 Dep.target = null
 const targetStack = []
 

@@ -290,10 +290,12 @@ function createComputedGetter (key) {
       // 获取时，先从缓存获取
       if (watcher.dirty) {
          // watcher 评估
+         // 如果被修改了，则执行一些get逻辑
         watcher.evaluate()
       }
       if (Dep.target) {
-        // 第一次执行时：
+        // 第一次执行时：--目前看起来不对，应该是别的属性使用了 这个 计算属性时触发的
+        // 将他加入了 需要更新的dep中
         // 当我们的 render 函数执行访问到 this.fullName 的时候，
         // 就触发了计算属性的 getter，它会拿到计算属性对应的 watcher，
         // 然后执行 watcher.depend()
