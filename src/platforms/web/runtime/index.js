@@ -1,6 +1,8 @@
 /* @flow */
 
+// 真正引入Vue的地方
 import Vue from 'core/index'
+
 import config from 'core/config'
 import { extend, noop } from 'shared/util'
 import { mountComponent } from 'core/instance/lifecycle'

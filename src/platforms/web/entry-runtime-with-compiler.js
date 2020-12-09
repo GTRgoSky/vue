@@ -29,8 +29,9 @@ Vue.prototype.$mount = function (el?: string | Element, hydrating?: boolean): Co
 
   const options = this.$options
   // resolve template/el and convert to render function
-  // 所有 Vue 的组件的渲染最终都需要 render 方法
+  // 若 函数对象 上 没有 render 函数
   if (!options.render) {
+    // 获取 template
     let template = options.template
     if (template) {
       if (typeof template === 'string') {

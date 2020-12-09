@@ -330,9 +330,9 @@ function assertObjectType (name: string, value: any, vm: ?Component) {
 /**
  * Merge two option objects into a new one.
  * Core utility used in both instantiation and inheritance.
- * 处理我们定义组件的对象 option，然后挂载到组件的实例 this.$options 中。
- * 合并两个选项对象-得到一个新的。
+ * 合并两个选项对象-得到一个新的。 -- child 覆盖 parent
  * 在实例化和继承中使用的核心实用程序
+ * 处理我们定义组件的对象 option，然后挂载到组件的实例 this.$options 中。
  * 合并父子得VUE配置，（data、watch、computed、methods等数据项）并且以子级配置为主（父子都有时）
  * 主要功能就是把 parent 和 child 这两个对象根据一些合并策略，合并成一个新对象并返回
  */

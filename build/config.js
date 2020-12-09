@@ -52,6 +52,7 @@ const builds = {
   },
   // Runtime only (ES Modules). Used by bundlers that support ES Modules,
   // e.g. Rollup & Webpack 2
+  // 项目中引入这个 会更优秀
   'web-runtime-esm': {
     entry: resolve('web/entry-runtime.js'),
     dest: resolve('dist/vue.runtime.esm.js'),
@@ -59,7 +60,6 @@ const builds = {
     banner
   },
   // Runtime+compiler CommonJS build (ES Modules)
-  // 项目中引入的是这个
   'web-full-esm': {
     entry: resolve('web/entry-runtime-with-compiler.js'),
     dest: resolve('dist/vue.esm.js'),
